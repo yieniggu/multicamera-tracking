@@ -19,19 +19,27 @@ class CameraModel extends HiveObject {
   @HiveField(4)
   String? thumbnailUrl;
 
+  @HiveField(5)
+  String groupId;
+
+  @HiveField(6)
+  Map<String, String> userRoles; // userId -> role as string
+
+  @HiveField(7)
+  DateTime createdAt;
+
+  @HiveField(8)
+  DateTime updatedAt;
+
   CameraModel({
     required this.id,
     required this.name,
     required this.description,
     required this.rtspUrl,
     this.thumbnailUrl,
+    required this.groupId,
+    required this.userRoles,
+    required this.createdAt,
+    required this.updatedAt,
   });
-
-  // Optional conversion helper
-  Map<String, dynamic> toMap() => {
-    'id': id,
-    'name': name,
-    'description': description,
-    'rtspUrl': rtspUrl,
-  };
 }

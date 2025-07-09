@@ -22,13 +22,17 @@ class CameraModelAdapter extends TypeAdapter<CameraModel> {
       description: fields[2] as String,
       rtspUrl: fields[3] as String,
       thumbnailUrl: fields[4] as String?,
+      groupId: fields[5] as String,
+      userRoles: (fields[6] as Map).cast<String, String>(),
+      createdAt: fields[7] as DateTime,
+      updatedAt: fields[8] as DateTime,
     );
   }
 
   @override
   void write(BinaryWriter writer, CameraModel obj) {
     writer
-      ..writeByte(5)
+      ..writeByte(9)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -38,7 +42,15 @@ class CameraModelAdapter extends TypeAdapter<CameraModel> {
       ..writeByte(3)
       ..write(obj.rtspUrl)
       ..writeByte(4)
-      ..write(obj.thumbnailUrl);
+      ..write(obj.thumbnailUrl)
+      ..writeByte(5)
+      ..write(obj.groupId)
+      ..writeByte(6)
+      ..write(obj.userRoles)
+      ..writeByte(7)
+      ..write(obj.createdAt)
+      ..writeByte(8)
+      ..write(obj.updatedAt);
   }
 
   @override
