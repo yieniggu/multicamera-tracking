@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>API_KEY</key>
+	<string>AIzaSyDS-bnTPlQJn67VAV2hbeiOoJxrAtnt5nI</string>
+	<key>GCM_SENDER_ID</key>
+	<string>401341133319</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.example.multicameraTracking</string>
+	<key>PROJECT_ID</key>
+	<string>multicamera-tracking</string>
+	<key>STORAGE_BUCKET</key>
+	<string>multicamera-tracking.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:401341133319:ios:2b0046d90c1e90c045b0a2</string>
+</dict>
+</plist>

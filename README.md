@@ -2,6 +2,9 @@
 
 A cross-platform Flutter app to manage and view multiple RTSP camera streams, built with a clean hexagonal architecture and real-time video playback support via VLC.
 
+This project requires you to configure your own Firebase project.
+Run `flutterfire configure` after linking your app to Firebase and setting up the platform targets.
+
 ---
 
 ## ✨ Features
