@@ -1,4 +1,4 @@
-enum AccessRole { admin, editor, viewer }
+import 'package:multicamera_tracking/domain/entities/access_role.dart';
 
 class Group {
   final String id;
