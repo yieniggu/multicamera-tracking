@@ -39,6 +39,8 @@ class FirebaseAuthRepository implements AuthRepository {
       email: email,
       password: password,
     );
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('is_guest', false);
     return _userFromFirebase(userCred.user);
   }
 

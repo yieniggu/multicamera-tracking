@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:multicamera_tracking/config/di.dart';
 import 'package:multicamera_tracking/domain/repositories/auth_repository.dart';
+import 'package:multicamera_tracking/presentation/screens/register_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:multicamera_tracking/presentation/screens/auth_gate.dart';
 
@@ -85,6 +86,15 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
             const SizedBox(height: 20),
             ElevatedButton(onPressed: _signIn, child: const Text("Login")),
+            TextButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                );
+              },
+              child: const Text("Don't have an account? Register"),
+            ),
             if (!hideGuestButton)
               TextButton.icon(
                 icon: const Icon(Icons.person_outline),
