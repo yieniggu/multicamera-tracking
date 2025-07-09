@@ -36,10 +36,9 @@ class _AddCameraSheetState extends State<AddCameraSheet> {
 
   void _submit() {
     if (_formKey.currentState?.validate() ?? false) {
+      final now = DateTime.now();
       final isEditing = widget.existingCamera != null;
-      final id = isEditing
-          ? widget.existingCamera!.id
-          : const Uuid().v4();
+      final id = isEditing ? widget.existingCamera!.id : const Uuid().v4();
 
       final camera = Camera(
         id: id,
@@ -49,11 +48,24 @@ class _AddCameraSheetState extends State<AddCameraSheet> {
         thumbnailUrl: _thumbnailController.text.trim().isEmpty
             ? null
             : _thumbnailController.text.trim(),
+        groupId: widget.existingCamera?.groupId ?? 'default', // TODO: Replace when group picker is implemented
+        userRoles: widget.existingCamera?.userRoles ?? {},
+        createdAt: widget.existingCamera?.createdAt ?? now,
+        updatedAt: now,
       );
 
       widget.onCameraAdded(camera);
       Navigator.pop(context);
     }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _descriptionController.dispose();
+    _urlController.dispose();
+    _thumbnailController.dispose();
+    super.dispose();
   }
 
   @override
