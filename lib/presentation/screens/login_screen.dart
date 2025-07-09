@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:multicamera_tracking/config/di.dart';
 import 'package:multicamera_tracking/domain/repositories/auth_repository.dart';
+import 'package:multicamera_tracking/domain/services/init_user_data_service.dart';
 import 'package:multicamera_tracking/presentation/screens/register_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:multicamera_tracking/presentation/screens/auth_gate.dart';
@@ -52,15 +53,21 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _signInAsGuest() async {
     final repo = getIt<AuthRepository>();
     try {
-      await repo.signInAnonymously();
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('is_guest', true);
+      final user = await repo.signInAnonymously(); // returns AuthUser
+
+      final initializer = getIt<InitUserDataService>();
+      if (user == null) {
+        throw Exception('User is null after anonymous sign-in');
+      }
+      await initializer.ensureDefaultProjectAndGroup(user.id);
+
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const AuthGate()),
         (route) => false,
       );
     } catch (e) {
+      print(e);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text("Guest login failed: $e")));

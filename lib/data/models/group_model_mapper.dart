@@ -1,3 +1,5 @@
+import 'package:multicamera_tracking/domain/entities/access_role.dart';
+
 import '../../domain/entities/group.dart';
 import 'group_model.dart';
 
