@@ -46,9 +46,15 @@ web/build/
 
 # Firebase
 firebase_app_id_file.json
+firebase_options.dart
+firebase.json
 
 # Other
 .env
 *.log
 .DS_Store
 *.lock
+
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+macos/Runner/GoogleService-Info.plist
