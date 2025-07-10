@@ -28,6 +28,24 @@ class FirestoreGroupRepository implements GroupRepository {
     return snapshot.docs.map((doc) => Group.fromJson(doc.data())).toList();
   }
 
+  @override
+  Future<void> delete(String projectId, String groupId) async {
+    debugPrint(
+      "[FIRE-GROUP-REP] Deleting group $groupId from project $projectId",
+    );
+
+    final docRef = _groupCollection(projectId).doc(groupId);
+    final doc = await docRef.get();
+
+    if (!doc.exists) return;
+
+    final data = doc.data();
+    if (data != null && (data['isDefault'] ?? false) == true) {
+      throw Exception("Cannot delete default group.");
+    }
+
+    await docRef.delete();
+  }
 
   @override
   Future<void> save(Group group) async {

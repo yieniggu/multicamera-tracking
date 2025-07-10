@@ -26,14 +26,17 @@ class HiveGroupRepository implements GroupRepository {
   }
 
   @override
-  Future<Group?> getDefaultGroup() async {
-    debugPrint("[HIVE-GROUP-REP] Getting default group");
-    try {
-      final model = box.values.firstWhere((e) => e.isDefault);
-      return model.toEntity();
-    } catch (_) {
-      return null;
+  Future<void> delete(String projectId, String groupId) async {
+    debugPrint(
+      "[HIVE-GROUP-REP] Deleting group $groupId from project $projectId",
+    );
+
+    final model = box.get(groupId);
+    if (model?.isDefault == true) {
+      throw Exception("Cannot delete default group.");
     }
+
+    await box.delete(groupId);
   }
 
   @override
