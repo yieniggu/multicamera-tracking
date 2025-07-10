@@ -17,9 +17,15 @@ class HiveProjectRepository implements ProjectRepository {
   }
 
   @override
-  Future<Project?> getDefaultProject() async {
-    debugPrint("[HIVE-PROJ-REP] Getting default project...");
-    return box.values.isNotEmpty ? box.values.first.toEntity() : null;
+  Future<void> delete(String id) async {
+    debugPrint("[HIVE-PROJECT-REP] Deleting project $id");
+
+    final model = box.get(id);
+    if (model?.isDefault == true) {
+      throw Exception("Cannot delete default project.");
+    }
+
+    await box.delete(id);
   }
 
   @override

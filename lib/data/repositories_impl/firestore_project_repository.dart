@@ -27,6 +27,23 @@ class FirestoreProjectRepository implements ProjectRepository {
   }
 
   @override
+  Future<void> delete(String id) async {
+    debugPrint("[FIRE-PROJECT-REP] Deleting project $id");
+
+    final docRef = firestore.collection('projects').doc(id);
+    final doc = await docRef.get();
+
+    if (!doc.exists) return;
+
+    final data = doc.data();
+    if (data != null && (data['isDefault'] ?? false) == true) {
+      throw Exception("Cannot delete default project.");
+    }
+
+    await docRef.delete();
+  }
+
+  @override
   Future<void> save(Project project) async {
     debugPrint("[FIRE-PROJ-REP] Saving project ${project.id}");
 
