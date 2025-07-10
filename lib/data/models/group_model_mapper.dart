@@ -7,6 +7,7 @@ extension GroupModelMapper on GroupModel {
   Group toEntity() => Group(
     id: id,
     name: name,
+    isDefault: isDefault,
     description: description,
     projectId: projectId,
     userRoles: userRoles.map(
@@ -21,6 +22,7 @@ extension GroupEntityMapper on Group {
   GroupModel toModel() => GroupModel(
     id: id,
     name: name,
+    isDefault: isDefault,
     description: description,
     projectId: projectId,
     userRoles: userRoles.map((k, v) => MapEntry(k, v.name)),

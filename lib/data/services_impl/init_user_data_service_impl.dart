@@ -19,7 +19,8 @@ class InitUserDataServiceImpl implements InitUserDataService {
   @override
   Future<void> ensureDefaultProjectAndGroup(String userId) async {
     debugPrint("[ENSURE-DEFAULT] Initializing defaults");
-    final existingProject = await projectRepository.getDefaultProject();
+    final allProjects = await projectRepository.getAll();
+    final existingProject = allProjects.where((p) => p.isDefault).firstOrNull;
     if (existingProject != null) return;
 
     final now = DateTime.now();
@@ -28,6 +29,7 @@ class InitUserDataServiceImpl implements InitUserDataService {
     final defaultProject = Project(
       id: projectId,
       name: _generateFunnyProjectName(),
+      isDefault: true,
       description: "Auto-generated project for user",
       userRoles: {userId: AccessRole.admin},
       createdAt: now,
@@ -40,6 +42,7 @@ class InitUserDataServiceImpl implements InitUserDataService {
     final defaultGroup = Group(
       id: groupId,
       name: "Default Group",
+      isDefault: true,
       description: "Auto-created group inside default project",
       projectId: projectId,
       userRoles: {userId: AccessRole.admin},

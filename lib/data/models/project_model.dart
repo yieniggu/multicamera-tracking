@@ -11,20 +11,24 @@ class ProjectModel extends HiveObject {
   String name;
 
   @HiveField(2)
-  String description;
+  bool isDefault;
 
   @HiveField(3)
-  Map<String, String> userRoles; // userId → role (as string)
+  String description;
 
   @HiveField(4)
-  DateTime createdAt;
+  Map<String, String> userRoles; // userId → role (as string)
 
   @HiveField(5)
+  DateTime createdAt;
+
+  @HiveField(6)
   DateTime updatedAt;
 
   ProjectModel({
     required this.id,
     required this.name,
+    required this.isDefault,
     required this.description,
     required this.userRoles,
     required this.createdAt,

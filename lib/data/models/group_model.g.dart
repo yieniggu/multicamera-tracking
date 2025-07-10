@@ -19,31 +19,34 @@ class GroupModelAdapter extends TypeAdapter<GroupModel> {
     return GroupModel(
       id: fields[0] as String,
       name: fields[1] as String,
-      description: fields[2] as String,
-      projectId: fields[3] as String,
-      userRoles: (fields[4] as Map).cast<String, String>(),
-      createdAt: fields[5] as DateTime,
-      updatedAt: fields[6] as DateTime,
+      isDefault: fields[2] as bool,
+      description: fields[3] as String,
+      projectId: fields[4] as String,
+      userRoles: (fields[5] as Map).cast<String, String>(),
+      createdAt: fields[6] as DateTime,
+      updatedAt: fields[7] as DateTime,
     );
   }
 
   @override
   void write(BinaryWriter writer, GroupModel obj) {
     writer
-      ..writeByte(7)
+      ..writeByte(8)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
       ..write(obj.name)
       ..writeByte(2)
-      ..write(obj.description)
+      ..write(obj.isDefault)
       ..writeByte(3)
-      ..write(obj.projectId)
+      ..write(obj.description)
       ..writeByte(4)
-      ..write(obj.userRoles)
+      ..write(obj.projectId)
       ..writeByte(5)
-      ..write(obj.createdAt)
+      ..write(obj.userRoles)
       ..writeByte(6)
+      ..write(obj.createdAt)
+      ..writeByte(7)
       ..write(obj.updatedAt);
   }
 

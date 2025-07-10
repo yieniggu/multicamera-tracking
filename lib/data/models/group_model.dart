@@ -11,23 +11,27 @@ class GroupModel extends HiveObject {
   String name;
 
   @HiveField(2)
-  String description;
+  bool isDefault;
 
   @HiveField(3)
-  String projectId;
+  String description;
 
   @HiveField(4)
-  Map<String, String> userRoles; // userId → role (as string)
+  String projectId;
 
   @HiveField(5)
-  DateTime createdAt;
+  Map<String, String> userRoles; // userId → role (as string)
 
   @HiveField(6)
+  DateTime createdAt;
+
+  @HiveField(7)
   DateTime updatedAt;
 
   GroupModel({
     required this.id,
     required this.name,
+    required this.isDefault,
     required this.description,
     required this.projectId,
     required this.userRoles,

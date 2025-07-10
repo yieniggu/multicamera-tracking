@@ -26,10 +26,10 @@ class HiveGroupRepository implements GroupRepository {
   }
 
   @override
-  Future<Group?> getDefaultGroup(String projectId) async {
-    debugPrint("[HIVE-GROUP-REP] Getting default group with project id $projectId");
+  Future<Group?> getDefaultGroup() async {
+    debugPrint("[HIVE-GROUP-REP] Getting default group");
     try {
-      final model = box.values.firstWhere((e) => e.projectId == projectId);
+      final model = box.values.firstWhere((e) => e.isDefault);
       return model.toEntity();
     } catch (_) {
       return null;

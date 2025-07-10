@@ -25,12 +25,16 @@ Future<void> migrateGuestDataToFirestore(String userId) async {
   final firestoreCameraRepo = FirestoreCameraRepository(firestore: firestore);
 
   // Abort if default already exists
-  final existingDefaultProject = await firestoreProjectRepo.getDefaultProject();
-  if (existingDefaultProject != null) {
-    final existingDefaultGroup = await firestoreGroupRepo.getDefaultGroup(
-      existingDefaultProject.id,
+  final allProjects = await firestoreProjectRepo.getAll();
+  final defaultProject = allProjects.where((p) => p.isDefault).firstOrNull;
+
+  if (defaultProject != null) {
+    final allGroups = await firestoreGroupRepo.getAllByProject(
+      defaultProject.id,
     );
-    if (existingDefaultGroup != null) {
+    final defaultGroup = allGroups.where((g) => g.isDefault).firstOrNull;
+
+    if (defaultGroup != null) {
       debugPrint(
         "Firestore already has default project/group. Skipping migration.",
       );
