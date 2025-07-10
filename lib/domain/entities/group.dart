@@ -3,6 +3,7 @@ import 'package:multicamera_tracking/domain/entities/access_role.dart';
 class Group {
   final String id;
   final String name;
+  final bool isDefault;
   final String description;
   final String projectId;
   final Map<String, AccessRole> userRoles;
@@ -12,6 +13,7 @@ class Group {
   Group({
     required this.id,
     required this.name,
+    required this.isDefault,
     required this.description,
     required this.projectId,
     required this.userRoles,
@@ -22,6 +24,7 @@ class Group {
   Group copyWith({
     String? name,
     String? description,
+    bool? isDefault,
     Map<String, AccessRole>? userRoles,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -29,6 +32,7 @@ class Group {
     return Group(
       id: id,
       name: name ?? this.name,
+      isDefault: isDefault ?? this.isDefault,
       description: description ?? this.description,
       projectId: projectId,
       userRoles: userRoles ?? this.userRoles,
@@ -41,6 +45,7 @@ class Group {
     return Group(
       id: json['id'] as String,
       name: json['name'] as String,
+      isDefault: json['isDefault'] as bool,
       description: json['description'] as String,
       projectId: json['projectId'] as String,
       userRoles: (json['userRoles'] as Map<String, dynamic>).map(
@@ -52,12 +57,13 @@ class Group {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'description': description,
-        'projectId': projectId,
-        'userRoles': userRoles.map((k, v) => MapEntry(k, v.name)),
-        'createdAt': createdAt.toIso8601String(),
-        'updatedAt': updatedAt.toIso8601String(),
-      };
+    'id': id,
+    'name': name,
+    'isDefault': isDefault,
+    'description': description,
+    'projectId': projectId,
+    'userRoles': userRoles.map((k, v) => MapEntry(k, v.name)),
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt.toIso8601String(),
+  };
 }

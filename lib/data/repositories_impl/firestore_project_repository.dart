@@ -27,24 +27,6 @@ class FirestoreProjectRepository implements ProjectRepository {
   }
 
   @override
-  Future<Project?> getDefaultProject() async {
-    debugPrint("[FIRE-PROJ-REP] Getting default project...");
-    final snapshot = await _projects
-        .where('userRoles.$userId', isGreaterThanOrEqualTo: '')
-        .limit(1)
-        .get();
-
-    if (snapshot.docs.isEmpty) return null;
-
-    final doc = snapshot.docs.first;
-    final data = doc.data();
-    data['id'] = doc.id;
-
-    debugPrint("[FIRE-PROJ-REP] Found project $data");
-    return Project.fromJson(data);
-  }
-
-  @override
   Future<void> save(Project project) async {
     debugPrint("[FIRE-PROJ-REP] Saving project ${project.id}");
 

@@ -4,6 +4,5 @@ abstract class GroupRepository {
   Future<List<Group>> getAll();
   Future<List<Group>> getAllByProject(String projecId);
 
-  Future<Group?> getDefaultGroup(String projectId);
   Future<void> save(Group group);
 }

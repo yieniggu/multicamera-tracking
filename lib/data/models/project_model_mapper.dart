@@ -7,6 +7,7 @@ extension ProjectModelMapper on ProjectModel {
   Project toEntity() => Project(
     id: id,
     name: name,
+    isDefault: isDefault,
     description: description,
     userRoles: userRoles.map(
       (k, v) => MapEntry(k, AccessRole.values.firstWhere((r) => r.name == v)),
@@ -20,6 +21,7 @@ extension ProjectEntityMapper on Project {
   ProjectModel toModel() => ProjectModel(
     id: id,
     name: name,
+    isDefault: isDefault,
     description: description,
     userRoles: userRoles.map((k, v) => MapEntry(k, v.name)),
     createdAt: createdAt,

@@ -20,6 +20,7 @@ class FirestoreGroupRepository implements GroupRepository {
   }
 
   // Optional helper if you want to load all groups for a given project
+  @override
   Future<List<Group>> getAllByProject(String projectId) async {
     debugPrint("[FIRE-GROUP-REP] Getting all projects from project $projectId");
 
@@ -27,19 +28,6 @@ class FirestoreGroupRepository implements GroupRepository {
     return snapshot.docs.map((doc) => Group.fromJson(doc.data())).toList();
   }
 
-  @override
-  Future<Group?> getDefaultGroup(String projectId) async {
-    debugPrint(
-      "[FIRE-GROUP-REP] Getting default group from project $projectId",
-    );
-
-    final doc = await _groupCollection(projectId).doc('default').get();
-    if (!doc.exists) return null;
-
-    debugPrint("[FIRE-GROUP-REP] Found group ${doc.data}");
-
-    return Group.fromJson(doc.data()!);
-  }
 
   @override
   Future<void> save(Group group) async {
