@@ -33,4 +33,26 @@ class Project {
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
+
+  factory Project.fromJson(Map<String, dynamic> json) {
+    return Project(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      description: json['description'] as String,
+      userRoles: (json['userRoles'] as Map<String, dynamic>).map(
+        (k, v) => MapEntry(k, AccessRole.values.firstWhere((e) => e.name == v)),
+      ),
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      updatedAt: DateTime.parse(json['updatedAt'] as String),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'description': description,
+        'userRoles': userRoles.map((k, v) => MapEntry(k, v.name)),
+        'createdAt': createdAt.toIso8601String(),
+        'updatedAt': updatedAt.toIso8601String(),
+      };
 }

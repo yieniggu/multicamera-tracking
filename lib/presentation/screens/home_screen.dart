@@ -24,12 +24,12 @@ class _HomeScreenState extends State<HomeScreen> {
   final _initService = getIt<InitUserDataService>();
   final _cameraRepo = getIt<CameraRepository>();
 
-  List<Camera> cameras = [];
   bool isLoading = true;
   bool isGuest = false;
 
-  Project? defaultProject;
-  Group? defaultGroup;
+  List<Project> projects = [];
+  Map<String, List<Group>> groupsByProject = {};
+  Map<String, List<Camera>> camerasByGroup = {}; // key = "$projectId|$groupId"
 
   @override
   void initState() {
@@ -38,38 +38,41 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _initialize() async {
-    await _checkAuthStatus();
-    await _loadDefaultProjectAndGroup();
-    await _loadCameras();
-  }
-
-  Future<void> _checkAuthStatus() async {
     final user = _auth.currentUser;
     isGuest = user?.isAnonymous == true;
-  }
 
-  Future<void> _loadDefaultProjectAndGroup() async {
-    final userId = _auth.currentUser?.id;
-    if (userId == null) return;
+    final projRepo = _initService.projectRepository;
+    final groupRepo = _initService.groupRepository;
+    final camRepo = _cameraRepo;
 
-    defaultProject = await _initService.projectRepository.getDefaultProject();
-    if (defaultProject != null) {
-      defaultGroup = await _initService.groupRepository.getDefaultGroup(defaultProject!.id);
+    final loadedProjects = await projRepo.getAll();
+    final Map<String, List<Group>> groupMap = {};
+    final Map<String, List<Camera>> camMap = {};
+
+    for (final project in loadedProjects) {
+      final projectGroups = await groupRepo.getAllByProject(project.id);
+      groupMap[project.id] = projectGroups;
+
+      for (final group in projectGroups) {
+        final groupCameras = await camRepo.getAllByGroup(project.id, group.id);
+        camMap["${project.id}|${group.id}"] = groupCameras;
+      }
     }
-  }
 
-  Future<void> _loadCameras() async {
-    final loaded = await _cameraRepo.getAll();
     setState(() {
-      cameras = loaded;
+      projects = loadedProjects;
+      groupsByProject = groupMap;
+      camerasByGroup = camMap;
       isLoading = false;
     });
   }
 
   Future<void> _addCamera(Camera camera) async {
     await _cameraRepo.save(camera);
+    final key = "${camera.projectId}|${camera.groupId}";
     setState(() {
-      cameras.add(camera);
+      camerasByGroup.putIfAbsent(key, () => []);
+      camerasByGroup[key]!.add(camera);
     });
   }
 
@@ -81,10 +84,12 @@ class _HomeScreenState extends State<HomeScreen> {
         existingCamera: camera,
         onCameraAdded: (updated) async {
           await _cameraRepo.save(updated);
+          final key = "${updated.projectId}|${updated.groupId}";
           setState(() {
-            final index = cameras.indexWhere((c) => c.id == updated.id);
-            if (index != -1) {
-              cameras[index] = updated;
+            final list = camerasByGroup[key];
+            if (list != null) {
+              final index = list.indexWhere((c) => c.id == updated.id);
+              if (index != -1) list[index] = updated;
             }
           });
         },
@@ -92,19 +97,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _deleteCamera(String id) async {
-    await _cameraRepo.delete(id);
+  Future<void> _deleteCamera(String projectId, String groupId, String id) async {
+    await _cameraRepo.deleteById(projectId, groupId, id);
+    final key = "$projectId|$groupId";
     setState(() {
-      cameras.removeWhere((c) => c.id == id);
+      camerasByGroup[key]?.removeWhere((c) => c.id == id);
     });
-  }
-
-  void _showAddCameraSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => AddCameraSheet(onCameraAdded: _addCamera),
-    );
   }
 
   void _openCamera(Camera camera) {
@@ -132,6 +130,14 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  void _showAddCameraSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => AddCameraSheet(onCameraAdded: _addCamera),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -145,92 +151,91 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          if (defaultProject != null && defaultGroup != null)
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Project: ${defaultProject!.name}",
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  Text(
-                    "Group: ${defaultGroup!.name}",
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                ],
-              ),
-            ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : cameras.isEmpty
-                      ? const Center(child: Text("No cameras added yet."))
-                      : ListView.builder(
-                          itemCount: cameras.length,
-                          itemBuilder: (context, index) {
-                            final camera = cameras[index];
-                            return Card(
-                              child: ListTile(
-                                leading: camera.thumbnailUrl != null
-                                    ? Image.network(
-                                        camera.thumbnailUrl!,
-                                        width: 64,
-                                        height: 64,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) =>
-                                            const Icon(Icons.image_not_supported),
-                                      )
-                                    : const Icon(Icons.videocam, size: 40),
-                                title: Text(camera.name),
-                                subtitle: Text(camera.rtspUrl),
-                                trailing: PopupMenuButton<String>(
-                                  onSelected: (value) {
-                                    if (value == 'edit') {
-                                      _editCamera(camera);
-                                    } else if (value == 'delete') {
-                                      _deleteCamera(camera.id);
-                                    }
-                                  },
-                                  itemBuilder: (context) => const [
-                                    PopupMenuItem(
-                                      value: 'edit',
-                                      child: Text('Edit'),
-                                    ),
-                                    PopupMenuItem(
-                                      value: 'delete',
-                                      child: Text('Delete'),
-                                    ),
-                                  ],
-                                ),
-                                onTap: () => _openCamera(camera),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : projects.isEmpty
+              ? const Center(child: Text("No projects found."))
+              : ListView.builder(
+                  itemCount: projects.length,
+                  itemBuilder: (context, projectIndex) {
+                    final project = projects[projectIndex];
+                    final groups = groupsByProject[project.id] ?? [];
+
+                    return ExpansionTile(
+                      title: Text(project.name),
+                      subtitle: Text(project.description),
+                      children: groups.map((group) {
+                        final camKey = "${project.id}|${group.id}";
+                        final groupCameras = camerasByGroup[camKey] ?? [];
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 8.0, horizontal: 16),
+                              child: Text(
+                                "Group: ${group.name}",
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 16),
                               ),
-                            );
-                          },
-                        ),
-            ),
-          ),
-          if (isGuest)
-            Padding(
+                            ),
+                            ...groupCameras.map((camera) => Card(
+                                  child: ListTile(
+                                    leading: camera.thumbnailUrl != null
+                                        ? Image.network(
+                                            camera.thumbnailUrl!,
+                                            width: 64,
+                                            height: 64,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported),
+                                          )
+                                        : const Icon(Icons.videocam, size: 40),
+                                    title: Text(camera.name),
+                                    subtitle: Text(camera.rtspUrl),
+                                    trailing: PopupMenuButton<String>(
+                                      onSelected: (value) {
+                                        if (value == 'edit') {
+                                          _editCamera(camera);
+                                        } else if (value == 'delete') {
+                                          _deleteCamera(project.id, group.id, camera.id);
+                                        }
+                                      },
+                                      itemBuilder: (context) => const [
+                                        PopupMenuItem(
+                                          value: 'edit',
+                                          child: Text('Edit'),
+                                        ),
+                                        PopupMenuItem(
+                                          value: 'delete',
+                                          child: Text('Delete'),
+                                        ),
+                                      ],
+                                    ),
+                                    onTap: () => _openCamera(camera),
+                                  ),
+                                )),
+                          ],
+                        );
+                      }).toList(),
+                    );
+                  },
+                ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _showAddCameraSheet,
+        child: const Icon(Icons.add),
+        tooltip: "Add Camera",
+      ),
+      bottomNavigationBar: widget.isGuest
+          ? Padding(
               padding: const EdgeInsets.all(12.0),
               child: ElevatedButton.icon(
                 onPressed: _navigateToLogin,
                 icon: const Icon(Icons.login),
                 label: const Text("Want to restore data anywhere? Log in"),
               ),
-            ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showAddCameraSheet,
-        child: const Icon(Icons.add),
-        tooltip: "Add Camera",
-      ),
+            )
+          : null,
     );
   }
 }

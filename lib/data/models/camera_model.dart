@@ -20,15 +20,18 @@ class CameraModel extends HiveObject {
   String? thumbnailUrl;
 
   @HiveField(5)
-  String groupId;
+  String projectId; // ✅ NEW
 
   @HiveField(6)
-  Map<String, String> userRoles; // userId -> role as string
+  String groupId;
 
   @HiveField(7)
-  DateTime createdAt;
+  Map<String, String> userRoles;
 
   @HiveField(8)
+  DateTime createdAt;
+
+  @HiveField(9)
   DateTime updatedAt;
 
   CameraModel({
@@ -37,6 +40,7 @@ class CameraModel extends HiveObject {
     required this.description,
     required this.rtspUrl,
     this.thumbnailUrl,
+    required this.projectId, // ✅ NEW
     required this.groupId,
     required this.userRoles,
     required this.createdAt,
