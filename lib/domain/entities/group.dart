@@ -36,4 +36,28 @@ class Group {
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
+
+  factory Group.fromJson(Map<String, dynamic> json) {
+    return Group(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      description: json['description'] as String,
+      projectId: json['projectId'] as String,
+      userRoles: (json['userRoles'] as Map<String, dynamic>).map(
+        (k, v) => MapEntry(k, AccessRole.values.firstWhere((e) => e.name == v)),
+      ),
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      updatedAt: DateTime.parse(json['updatedAt'] as String),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'description': description,
+        'projectId': projectId,
+        'userRoles': userRoles.map((k, v) => MapEntry(k, v.name)),
+        'createdAt': createdAt.toIso8601String(),
+        'updatedAt': updatedAt.toIso8601String(),
+      };
 }

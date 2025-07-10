@@ -29,7 +29,9 @@ class _AddCameraSheetState extends State<AddCameraSheet> {
   late final TextEditingController _thumbnailController;
 
   List<Project> _projects = [];
-  List<Group> _groups = [];
+  List<Group> _allGroups = [];
+  List<Group> _filteredGroups = [];
+
   Project? _selectedProject;
   Group? _selectedGroup;
 
@@ -45,35 +47,57 @@ class _AddCameraSheetState extends State<AddCameraSheet> {
     _urlController = TextEditingController(text: cam?.rtspUrl ?? '');
     _thumbnailController = TextEditingController(text: cam?.thumbnailUrl ?? '');
 
-    _loadProjectsAndGroups();
+    _loadProjectsAndGroups(cam);
   }
 
-  Future<void> _loadProjectsAndGroups() async {
+  Future<void> _loadProjectsAndGroups(Camera? cam) async {
     final projectRepo = getIt<ProjectRepository>();
     final groupRepo = getIt<GroupRepository>();
 
-    final allProjects = await projectRepo.getAll();
-    final allGroups = await groupRepo.getAll();
+    final projects = await projectRepo.getAll();
+    final groups = await groupRepo.getAll();
+
+    Project? initialProject;
+    Group? initialGroup;
+
+    if (cam != null) {
+      initialGroup = groups.firstWhere(
+        (g) => g.id == cam.groupId,
+        orElse: () => groups.first,
+      );
+      initialProject = projects.firstWhere(
+        (p) => p.id == initialGroup!.projectId,
+        orElse: () => projects.first,
+      );
+    } else {
+      initialProject = projects.isNotEmpty ? projects.first : null;
+      initialGroup = groups.firstWhere(
+        (g) => g.projectId == initialProject?.id,
+        orElse: () => groups.first,
+      );
+    }
 
     setState(() {
-      _projects = allProjects;
-      if (_projects.isNotEmpty) {
-        _selectedProject = _projects.firstWhere(
-          (p) => p.id == widget.existingCamera?.groupId,
-          orElse: () => _projects.first,
-        );
-      }
+      _projects = projects;
+      _allGroups = groups;
+      _selectedProject = initialProject;
+      _filteredGroups = _filterGroups(initialProject?.id);
+      _selectedGroup = _filteredGroups.contains(initialGroup)
+          ? initialGroup
+          : _filteredGroups.firstOrNull;
+    });
+  }
 
-      _groups = allGroups;
-      if (_groups.isNotEmpty && _selectedProject != null) {
-        _selectedGroup = _groups.firstWhere(
-          (g) => g.id == widget.existingCamera?.groupId,
-          orElse: () => _groups.firstWhere(
-            (g) => g.projectId == _selectedProject!.id,
-            orElse: () => _groups.first,
-          ),
-        );
-      }
+  List<Group> _filterGroups(String? projectId) {
+    return _allGroups.where((g) => g.projectId == projectId).toList();
+  }
+
+  void _onProjectChanged(Project? newProject) {
+    final groups = _filterGroups(newProject?.id);
+    setState(() {
+      _selectedProject = newProject;
+      _filteredGroups = groups;
+      _selectedGroup = groups.firstOrNull;
     });
   }
 
@@ -99,6 +123,7 @@ class _AddCameraSheetState extends State<AddCameraSheet> {
             ? null
             : _thumbnailController.text.trim(),
         groupId: _selectedGroup!.id,
+        projectId: _selectedProject!.id,
         userRoles: widget.existingCamera?.userRoles ?? {},
         createdAt: widget.existingCamera?.createdAt ?? now,
         updatedAt: now,
@@ -146,24 +171,16 @@ class _AddCameraSheetState extends State<AddCameraSheet> {
                 items: _projects
                     .map((p) => DropdownMenuItem(value: p, child: Text(p.name)))
                     .toList(),
-                onChanged: (project) {
-                  setState(() {
-                    _selectedProject = project;
-                    _selectedGroup = null;
-                  });
-                },
+                onChanged: _onProjectChanged,
               ),
               const SizedBox(height: 10),
               DropdownButtonFormField<Group>(
                 value: _selectedGroup,
                 decoration: const InputDecoration(labelText: "Select Group"),
-                items: _groups
-                    .where((g) => g.projectId == _selectedProject?.id)
+                items: _filteredGroups
                     .map((g) => DropdownMenuItem(value: g, child: Text(g.name)))
                     .toList(),
-                onChanged: (group) {
-                  setState(() => _selectedGroup = group);
-                },
+                onChanged: (g) => setState(() => _selectedGroup = g),
               ),
               const SizedBox(height: 10),
               TextFormField(

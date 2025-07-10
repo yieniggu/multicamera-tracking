@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:multicamera_tracking/config/di.dart';
+import 'package:multicamera_tracking/data/services_impl/init_user_data_service_impl.dart';
 import 'package:multicamera_tracking/domain/repositories/auth_repository.dart';
+import 'package:multicamera_tracking/domain/repositories/group_repository.dart';
+import 'package:multicamera_tracking/domain/repositories/project_repository.dart';
 import 'package:multicamera_tracking/domain/services/init_user_data_service.dart';
-import 'package:multicamera_tracking/presentation/screens/register_screen.dart';
+import 'package:multicamera_tracking/data/services_impl/migrate_user_data_service_impl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'package:multicamera_tracking/presentation/screens/register_screen.dart';
 import 'package:multicamera_tracking/presentation/screens/auth_gate.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -33,17 +38,27 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _signIn() async {
-    final repo = getIt<AuthRepository>();
+    final authRepo = getIt<AuthRepository>();
     try {
-      await repo.signInWithEmail(emailCtrl.text.trim(), passCtrl.text.trim());
+      final user = await authRepo.signInWithEmail(
+        emailCtrl.text.trim(),
+        passCtrl.text.trim(),
+      );
+
+      if (user == null) throw Exception("User is null after sign-in");
+
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('is_guest', false); // reset guest flag if needed
+      await prefs.setBool('is_guest', false);
+
+      await configureRepositories(user);
+
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const AuthGate()),
         (route) => false,
       );
     } catch (e) {
+      debugPrint(e.toString());
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text("Login failed: $e")));
@@ -53,13 +68,32 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _signInAsGuest() async {
     final repo = getIt<AuthRepository>();
     try {
-      final user = await repo.signInAnonymously(); // returns AuthUser
+      debugPrint("[LOGIN] Init sign in as guest");
+      final user = await repo.signInAnonymously();
+      if (user == null) throw Exception("User is null after anonymous login");
+      debugPrint("[LOGIN] Succesfully logged in user: ${user.id}");
+
+
+      await configureRepositories(user);
+
+      // Re-bind InitUserDataService (safe even if already registered)
+      if (getIt.isRegistered<InitUserDataService>()) {
+        getIt.unregister<InitUserDataService>();
+      }
+      getIt.registerSingleton<InitUserDataService>(
+        InitUserDataServiceImpl(
+          projectRepository: getIt<ProjectRepository>(),
+          groupRepository: getIt<GroupRepository>(),
+        ),
+      );
 
       final initializer = getIt<InitUserDataService>();
-      if (user == null) {
-        throw Exception('User is null after anonymous sign-in');
-      }
-      await initializer.ensureDefaultProjectAndGroup(user.id);
+      await initializer.ensureDefaultProjectAndGroup(
+        user.id,
+      ); // ✅ create default only in Hive
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('is_guest', true);
 
       Navigator.pushAndRemoveUntil(
         context,

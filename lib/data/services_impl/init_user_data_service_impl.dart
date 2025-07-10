@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:multicamera_tracking/domain/entities/access_role.dart';
 import 'package:multicamera_tracking/domain/entities/project.dart';
 import 'package:multicamera_tracking/domain/entities/group.dart';
@@ -17,6 +18,7 @@ class InitUserDataServiceImpl implements InitUserDataService {
 
   @override
   Future<void> ensureDefaultProjectAndGroup(String userId) async {
+    debugPrint("[ENSURE-DEFAULT] Initializing defaults");
     final existingProject = await projectRepository.getDefaultProject();
     if (existingProject != null) return;
 
@@ -26,7 +28,7 @@ class InitUserDataServiceImpl implements InitUserDataService {
     final defaultProject = Project(
       id: projectId,
       name: _generateFunnyProjectName(),
-      description: "Auto-generated project for user $userId",
+      description: "Auto-generated project for user",
       userRoles: {userId: AccessRole.admin},
       createdAt: now,
       updatedAt: now,
