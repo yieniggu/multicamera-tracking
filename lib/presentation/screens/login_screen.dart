@@ -5,11 +5,9 @@ import 'package:multicamera_tracking/domain/repositories/auth_repository.dart';
 import 'package:multicamera_tracking/domain/repositories/group_repository.dart';
 import 'package:multicamera_tracking/domain/repositories/project_repository.dart';
 import 'package:multicamera_tracking/domain/services/init_user_data_service.dart';
-import 'package:multicamera_tracking/data/services_impl/migrate_user_data_service_impl.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:multicamera_tracking/presentation/screens/register_screen.dart';
 import 'package:multicamera_tracking/presentation/screens/auth_gate.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -50,8 +48,9 @@ class _LoginScreenState extends State<LoginScreen> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('is_guest', false);
 
-      await configureRepositories(user);
+      await _setupUserContext(user.id, isGuest: false);
 
+      // ✅ Now restart the widget tree so AuthGate triggers and loads everything
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const AuthGate()),
@@ -68,32 +67,10 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _signInAsGuest() async {
     final repo = getIt<AuthRepository>();
     try {
-      debugPrint("[LOGIN] Init sign in as guest");
       final user = await repo.signInAnonymously();
       if (user == null) throw Exception("User is null after anonymous login");
-      debugPrint("[LOGIN] Succesfully logged in user: ${user.id}");
 
-
-      await configureRepositories(user);
-
-      // Re-bind InitUserDataService (safe even if already registered)
-      if (getIt.isRegistered<InitUserDataService>()) {
-        getIt.unregister<InitUserDataService>();
-      }
-      getIt.registerSingleton<InitUserDataService>(
-        InitUserDataServiceImpl(
-          projectRepository: getIt<ProjectRepository>(),
-          groupRepository: getIt<GroupRepository>(),
-        ),
-      );
-
-      final initializer = getIt<InitUserDataService>();
-      await initializer.ensureDefaultProjectAndGroup(
-        user.id,
-      ); // ✅ create default only in Hive
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('is_guest', true);
+      await _setupUserContext(user.id, isGuest: true);
 
       Navigator.pushAndRemoveUntil(
         context,
@@ -101,11 +78,31 @@ class _LoginScreenState extends State<LoginScreen> {
         (route) => false,
       );
     } catch (e) {
-      print(e);
+      debugPrint(e.toString());
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text("Guest login failed: $e")));
     }
+  }
+
+  Future<void> _setupUserContext(String userId, {bool isGuest = false}) async {
+    await configureRepositories(getIt<AuthRepository>().currentUser!);
+
+    if (getIt.isRegistered<InitUserDataService>()) {
+      getIt.unregister<InitUserDataService>();
+    }
+
+    getIt.registerSingleton<InitUserDataService>(
+      InitUserDataServiceImpl(
+        projectRepository: getIt<ProjectRepository>(),
+        groupRepository: getIt<GroupRepository>(),
+      ),
+    );
+
+    await getIt<InitUserDataService>().ensureDefaultProjectAndGroup(userId);
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('is_guest', isGuest);
   }
 
   @override

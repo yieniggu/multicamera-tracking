@@ -12,12 +12,9 @@ class GuestDataService {
 
   Future<bool> hasDataToMigrate() async {
     final allProjects = await projectRepository.getAll();
-    final defaultProject = allProjects.where((p) => p.isDefault).firstOrNull;
-    if (defaultProject == null) return false;
+    if (allProjects.isEmpty) return false;
 
-    final groups = await groupRepository.getAllByProject(defaultProject.id);
-    final defaultGroup = groups.where((g) => g.isDefault).firstOrNull;
-
-    return defaultGroup != null;
+    final groups = await groupRepository.getAllByProject(allProjects.first.id);
+    return groups.isNotEmpty;
   }
 }
