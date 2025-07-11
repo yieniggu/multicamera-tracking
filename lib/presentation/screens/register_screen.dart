@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:multicamera_tracking/data/models/group_model.dart';
+import 'package:multicamera_tracking/data/models/project_model.dart';
+import 'package:multicamera_tracking/data/repositories_impl/hive_group_repository.dart';
+import 'package:multicamera_tracking/data/repositories_impl/hive_project_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:multicamera_tracking/config/di.dart';
@@ -37,13 +42,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _checkGuestData() async {
-    if (getIt.isRegistered<GuestDataService>()) {
-      final guestDataService = getIt<GuestDataService>();
-      final exists = await guestDataService.hasDataToMigrate();
-      setState(() {
-        hasGuestData = exists;
-      });
+    if (!getIt.isRegistered<GuestDataService>()) {
+      final projectBox = await Hive.openBox<ProjectModel>('projects');
+      final groupBox = await Hive.openBox<GroupModel>('groups');
+
+      final hiveProjectRepo = HiveProjectRepository(box: projectBox);
+      final hiveGroupRepo = HiveGroupRepository(box: groupBox);
+
+      getIt.registerSingleton<GuestDataService>(
+        GuestDataService(
+          projectRepository: hiveProjectRepo,
+          groupRepository: hiveGroupRepo,
+        ),
+      );
     }
+
+    final guestDataService = getIt<GuestDataService>();
+    final exists = await guestDataService.hasDataToMigrate();
+    setState(() {
+      hasGuestData = exists;
+    });
   }
 
   Future<void> _register() async {
@@ -53,7 +71,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => isLoading = true);
 
     try {
-      // STEP 1: Register
       final user = await authRepo.registerWithEmail(
         emailCtrl.text.trim(),
         passCtrl.text.trim(),
@@ -63,34 +80,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('is_guest', false);
 
-      // STEP 2: Configure Firebase Repos
-      await configureRepositories(user);
+      await _setupUserContext(user.id);
 
-      // STEP 3: Register InitUserDataService
-      if (getIt.isRegistered<InitUserDataService>()) {
-        getIt.unregister<InitUserDataService>();
-      }
-      getIt.registerSingleton<InitUserDataService>(
-        InitUserDataServiceImpl(
-          projectRepository: getIt<ProjectRepository>(),
-          groupRepository: getIt<GroupRepository>(),
-        ),
-      );
-
-      final initializer = getIt<InitUserDataService>();
-
-      // STEP 4: Handle migration vs. default
-      if (!hasGuestData) {
-        await initializer.ensureDefaultProjectAndGroup(user.id);
-      } else if (migrateGuestData) {
-        debugPrint("[REGISTER] Migrating guest data to Firestore");
-        await migrateGuestDataToFirestore(user.id);
-      } else {
-        debugPrint("[REGISTER] Skipping migration, creating default project/group");
-        await initializer.ensureDefaultProjectAndGroup(user.id);
-      }
-
-      // STEP 5: Navigate to AuthGate
       if (context.mounted) {
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const AuthGate()),
@@ -99,12 +90,45 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
     } catch (e) {
       debugPrint("[REGISTER-SCREEN] Error on register: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Registration failed: $e")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Registration failed: $e")));
     } finally {
       setState(() => isLoading = false);
     }
+  }
+
+  Future<void> _setupUserContext(String userId) async {
+    await configureRepositories(getIt<AuthRepository>().currentUser!);
+
+    if (getIt.isRegistered<InitUserDataService>()) {
+      getIt.unregister<InitUserDataService>();
+    }
+
+    getIt.registerSingleton<InitUserDataService>(
+      InitUserDataServiceImpl(
+        projectRepository: getIt<ProjectRepository>(),
+        groupRepository: getIt<GroupRepository>(),
+      ),
+    );
+
+    final initializer = getIt<InitUserDataService>();
+
+    if (!hasGuestData) {
+      await initializer.ensureDefaultProjectAndGroup(userId);
+    } else if (migrateGuestData) {
+      debugPrint("[REGISTER] Migrating guest data to Firestore");
+      await migrateGuestDataToFirestore(userId);
+    } else {
+      debugPrint(
+        "[REGISTER] Skipping migration, creating default project/group",
+      );
+      await initializer.ensureDefaultProjectAndGroup(userId);
+    }
+
+    // ✅ Refresh the existing ProjectManager from Provider
+    // final manager = context.read<ProjectManager>();
+    // await manager.loadAll();
   }
 
   @override
@@ -160,7 +184,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     TextFormField(
                       controller: confirmCtrl,
                       obscureText: true,
-                      decoration: const InputDecoration(labelText: "Confirm Password"),
+                      decoration: const InputDecoration(
+                        labelText: "Confirm Password",
+                      ),
                       validator: (value) {
                         if (value != passCtrl.text) {
                           return "Passwords do not match";
