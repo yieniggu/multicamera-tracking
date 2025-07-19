@@ -1,0 +1,12 @@
+import '../repositories/auth_repository.dart';
+import '../entities/auth_user.dart';
+
+class RegisterWithEmailUseCase {
+  final AuthRepository repository;
+
+  RegisterWithEmailUseCase(this.repository);
+
+  Future<AuthUser?> call(String email, String password) {
+    return repository.registerWithEmail(email, password);
+  }
+}
