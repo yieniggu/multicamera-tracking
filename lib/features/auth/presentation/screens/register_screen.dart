@@ -6,10 +6,7 @@ import 'package:multicamera_tracking/features/auth/presentation/bloc/auth_event.
 import 'package:multicamera_tracking/features/auth/presentation/bloc/auth_state.dart';
 import 'package:multicamera_tracking/features/surveillance/data/datasources/local/project_local_datasource.dart';
 
-import 'package:multicamera_tracking/features/surveillance/domain/repositories/project_repository.dart';
 import 'package:multicamera_tracking/config/di.dart';
-
-import 'auth_gate.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -79,10 +76,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         }
 
         if (state is AuthAuthenticated) {
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const AuthGate()),
-            (route) => false,
-          );
+          // Close Register and Login, reveal the existing AuthGate underneath.
+          Navigator.of(context).popUntil((route) => route.isFirst);
         } else if (state is AuthFailure) {
           ScaffoldMessenger.of(
             context,

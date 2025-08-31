@@ -17,7 +17,7 @@ class InitUserDataServiceImpl implements InitUserDataService {
   InitUserDataServiceImpl({
     required this.projectRepository,
     required this.groupRepository,
-    required this.authRepository
+    required this.authRepository,
   });
 
   @override

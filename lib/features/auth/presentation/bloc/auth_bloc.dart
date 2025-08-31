@@ -183,6 +183,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(AuthLoading());
     try {
       await signOutUseCase();
+
+      // ensure we switch back to local mode after logout
+      useRemoteNotifier.value = false;
+
       debugPrint("[AUTH-BLOC]onSignedOut: user signed out");
       emit(AuthUnauthenticated());
     } catch (e) {

@@ -119,10 +119,7 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
   }
 
   /// Removes the camera from the saving set
-  void _onUnmarkSaving(
-    UnmarkCameraSaving event,
-    Emitter<CameraState> emit,
-  ) {
+  void _onUnmarkSaving(UnmarkCameraSaving event, Emitter<CameraState> emit) {
     final current = state;
     if (current is! CameraLoaded) return;
 

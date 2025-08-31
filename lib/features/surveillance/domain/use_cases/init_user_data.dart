@@ -5,6 +5,5 @@ class InitUserDataUseCase {
 
   InitUserDataUseCase(this._service);
 
-  Future<void> call() =>
-      _service.ensureDefaultProjectAndGroup();
+  Future<void> call() => _service.ensureDefaultProjectAndGroup();
 }

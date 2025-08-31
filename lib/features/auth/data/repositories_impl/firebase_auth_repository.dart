@@ -70,7 +70,7 @@ class FirebaseAuthRepository implements AuthRepository {
   Future<void> signOut() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('is_guest', false);
-    _firebaseAuth.signOut();
+    await _firebaseAuth.signOut();
   }
 
   @override

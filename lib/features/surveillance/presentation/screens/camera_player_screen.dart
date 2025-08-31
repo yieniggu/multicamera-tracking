@@ -52,9 +52,7 @@ class _CameraPlayerScreenState extends State<CameraPlayerScreen> {
 
   void _resetOrientation() {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-    ]);
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   }
 
   @override
@@ -66,9 +64,7 @@ class _CameraPlayerScreenState extends State<CameraPlayerScreen> {
     );
 
     return Scaffold(
-      appBar: _isFullscreen
-          ? null
-          : AppBar(title: Text(widget.camera.name)),
+      appBar: _isFullscreen ? null : AppBar(title: Text(widget.camera.name)),
       body: SafeArea(
         child: Column(
           children: [

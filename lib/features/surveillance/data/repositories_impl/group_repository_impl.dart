@@ -32,6 +32,8 @@ class GroupRepositoryImpl implements GroupRepository {
 
   @override
   Future<void> delete(String projectId, String groupId) {
-    return isRemote ? remote.delete(projectId, groupId) : local.delete(projectId, groupId);
+    return isRemote
+        ? remote.delete(projectId, groupId)
+        : local.delete(projectId, groupId);
   }
 }

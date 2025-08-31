@@ -34,7 +34,7 @@ class ProjectLocalDatasource implements ProjectDataSource {
     debugPrint("[PROJ-LOCAL-DS] Deleting project with it: $id");
 
     final model = box.get(id);
-    if (model != null && (model.isDefault ?? false)) {
+    if (model != null && (model.isDefault)) {
       throw Exception("Cannot delete default project.");
     }
     await box.delete(id);
