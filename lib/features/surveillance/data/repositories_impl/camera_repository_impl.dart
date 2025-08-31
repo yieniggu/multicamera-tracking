@@ -32,8 +32,22 @@ class CameraRepositoryImpl implements CameraRepository {
   }
 
   @override
-  Future<void> save(Camera camera) {
-    return isRemote ? remote.save(camera) : local.save(camera);
+  Future<void> save(Camera camera) async {
+    if (!isRemote) {
+      // Local trial mode: allow max 4 cameras per group
+      final current = await local.getAllByGroup(
+        camera.projectId,
+        camera.groupId,
+      );
+      final isEditing = current.any((c) => c.id == camera.id);
+      if (!isEditing && current.length >= 4) {
+        throw Exception(
+          "Trial limit reached: max 4 cameras per group in guest mode.",
+        );
+      }
+      return local.save(camera);
+    }
+    return remote.save(camera);
   }
 
   @override

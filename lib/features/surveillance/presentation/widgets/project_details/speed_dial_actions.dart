@@ -4,6 +4,12 @@ import 'package:multicamera_tracking/features/surveillance/domain/entities/group
 import 'package:multicamera_tracking/features/surveillance/domain/entities/project.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/widgets/project_details/add_camera_sheet.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/widgets/project_details/add_group_sheet.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:multicamera_tracking/shared/utils/app_mode.dart';
+import 'package:multicamera_tracking/features/surveillance/presentation/bloc/group/group_bloc.dart';
+import 'package:multicamera_tracking/features/surveillance/presentation/bloc/group/group_state.dart';
+import 'package:multicamera_tracking/features/surveillance/presentation/bloc/camera/camera_bloc.dart';
+import 'package:multicamera_tracking/features/surveillance/presentation/bloc/camera/camera_state.dart';
 
 class SpeedDialActions extends StatelessWidget {
   final Project project;
@@ -36,6 +42,28 @@ class SpeedDialActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final trial = isTrialLocalMode();
+
+    // group count in this project
+    final groupState = context.watch<GroupBloc>().state;
+    final groups = (groupState is GroupLoaded)
+        ? groupState.getGroups(project.id)
+        : <Group>[];
+    final groupCount = groups.length;
+
+    // camera count in selected group (if any)
+    final cameraState = context.watch<CameraBloc>().state;
+    final camCount = (selectedGroup != null && cameraState is CameraLoaded)
+        ? cameraState.getCameras(project.id, selectedGroup!.id).length
+        : 0;
+
+    final canAddGroup = !trial || groupCount < 1;
+    final canAddCamera = selectedGroup != null && (!trial || camCount < 4);
+
+    void _explain(String msg) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    }
+
     return SpeedDial(
       icon: Icons.add,
       activeIcon: Icons.close,
@@ -47,14 +75,22 @@ class SpeedDialActions extends StatelessWidget {
       children: [
         SpeedDialChild(
           child: const Icon(Icons.group_add),
-          label: 'Add Group',
-          onTap: () => _createGroup(context),
+          label: trial ? 'Add Group ($groupCount/1)' : 'Add Group',
+          onTap: canAddGroup
+              ? () => _createGroup(context)
+              : () => _explain(
+                  "Trial limit: only 1 group per project in guest mode.",
+                ),
         ),
         if (selectedGroup != null)
           SpeedDialChild(
             child: const Icon(Icons.videocam),
-            label: 'Add Camera',
-            onTap: () => _createCamera(context),
+            label: trial ? 'Add Camera ($camCount/4)' : 'Add Camera',
+            onTap: canAddCamera
+                ? () => _createCamera(context)
+                : () => _explain(
+                    "Trial limit: max 4 cameras per group in guest mode.",
+                  ),
           ),
       ],
     );

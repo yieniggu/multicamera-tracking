@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:multicamera_tracking/config/di.dart';
+import 'package:multicamera_tracking/shared/utils/app_mode.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/get_current_user.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/register_with_email.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/sign_out.dart';
@@ -12,8 +12,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'auth_event.dart';
 import 'auth_state.dart';
-
-final useRemoteNotifier = getIt<ValueNotifier<bool>>();
 
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final SignInWithEmailUseCase signInWithEmailUseCase;
@@ -56,7 +54,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
       // Instead of relying only on prefs, check if user is anonymous
       final isGuest = user.isAnonymous;
-      useRemoteNotifier.value = !isGuest;
+      remoteEnabled.value = !isGuest;
 
       // Update prefs to stay in sync
       final prefs = await SharedPreferences.getInstance();
@@ -83,7 +81,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           "[AUTH-BLOC]onCheckRequested: found user: ${user.toString()}",
         );
 
-        useRemoteNotifier.value = true;
+        remoteEnabled.value = true;
 
         await initUserDataUseCase();
         emit(AuthAuthenticated(user, isGuest: false));
@@ -115,7 +113,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           "[AUTH-BLOC]onRegisterWithEmail: registered new user: ${user.toString()}",
         );
 
-        useRemoteNotifier.value = true;
+        remoteEnabled.value = true;
 
         // Optionally migrate guest data
         if (event.shouldMigrateGuestData) {
@@ -158,7 +156,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           "[AUTH-BLOC]onSignedInAnonymousle: starting initUserDataUseCase",
         );
 
-        useRemoteNotifier.value = false;
+        remoteEnabled.value = false;
 
         await initUserDataUseCase();
         emit(AuthAuthenticated(user, isGuest: true));
@@ -185,7 +183,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       await signOutUseCase();
 
       // ensure we switch back to local mode after logout
-      useRemoteNotifier.value = false;
+      remoteEnabled.value = false;
 
       debugPrint("[AUTH-BLOC]onSignedOut: user signed out");
       emit(AuthUnauthenticated());

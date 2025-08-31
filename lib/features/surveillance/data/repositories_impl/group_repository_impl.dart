@@ -26,8 +26,19 @@ class GroupRepositoryImpl implements GroupRepository {
   }
 
   @override
-  Future<void> save(Group group) {
-    return isRemote ? remote.save(group) : local.save(group);
+  Future<void> save(Group group) async {
+    if (!isRemote) {
+      // Local trial mode: allow max 1 group per project
+      final existing = await local.getAllByProject(group.projectId);
+      final isEditing = existing.any((g) => g.id == group.id);
+      if (!isEditing && existing.isNotEmpty) {
+        throw Exception(
+          "Trial limit reached: only 1 group per project in guest mode.",
+        );
+      }
+      return local.save(group);
+    }
+    return remote.save(group);
   }
 
   @override
