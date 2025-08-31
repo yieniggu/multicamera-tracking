@@ -79,9 +79,15 @@ class _AddGroupSheetState extends State<AddGroupSheet> {
 
       late final StreamSubscription sub;
       sub = bloc.stream.listen((state) {
+        if (!mounted) return;
         if (state is GroupLoaded) {
           sub.cancel();
-          if (mounted) Navigator.pop(context);
+          Navigator.pop(context);
+        } else if (state is GroupError) {
+          sub.cancel();
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(state.message)));
         }
       });
 
@@ -116,7 +122,7 @@ class _AddGroupSheetState extends State<AddGroupSheet> {
       return <Group>[];
     });
     final trial = isTrialLocalMode();
-    final blocked = trial && !isEditing && groups.length >= 1;
+    final blocked = trial && !isEditing && groups.isNotEmpty;
 
     return Padding(
       padding: EdgeInsets.only(

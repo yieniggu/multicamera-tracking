@@ -119,9 +119,15 @@ class _AddCameraSheetState extends State<AddCameraSheet> {
 
       late final StreamSubscription sub;
       sub = bloc.stream.listen((state) {
+        if (!mounted) return;
         if (state is CameraLoaded) {
           sub.cancel();
-          if (mounted) Navigator.pop(context);
+          Navigator.pop(context);
+        } else if (state is CameraError) {
+          sub.cancel();
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(state.message)));
         }
       });
 

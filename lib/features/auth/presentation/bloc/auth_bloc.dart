@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:multicamera_tracking/config/di.dart';
+import 'package:multicamera_tracking/features/auth/domain/repositories/auth_repository.dart';
 import 'package:multicamera_tracking/shared/utils/app_mode.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/get_current_user.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/register_with_email.dart';
@@ -21,6 +25,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final GetCurrentUserUseCase getCurrentUserUseCase;
   final InitUserDataUseCase initUserDataUseCase;
   final MigrateGuestDataUseCase migrateGuestDataUseCase;
+  late final StreamSubscription _authSub;
 
   AuthBloc({
     required this.signInWithEmailUseCase,
@@ -36,6 +41,16 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthRegisteredWithEmail>(_onRegisteredWithEmail);
     on<AuthSignedInAnonymously>(_onSignedInAnonymously);
     on<AuthSignedOut>(_onSignedOut);
+
+    _authSub = getIt<AuthRepository>().authStateChanges().listen((_) {
+      add(AuthCheckRequested());
+    });
+  }
+
+  @override
+  Future<void> close() {
+    _authSub.cancel();
+    return super.close();
   }
 
   Future<void> _onCheckRequested(
