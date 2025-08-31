@@ -8,7 +8,6 @@ class ProjectRemoteDataSource implements ProjectDataSource {
 
   ProjectRemoteDataSource({required this.firestore});
 
-
   CollectionReference<Map<String, dynamic>> get _projects =>
       firestore.collection('projects');
 
@@ -32,7 +31,11 @@ class ProjectRemoteDataSource implements ProjectDataSource {
     debugPrint("[FIRE-PROJ-DS] Saving project ${project.id}");
 
     final id = project.id.isNotEmpty ? project.id : _projects.doc().id;
-    await _projects.doc(id).set(project.toJson(), SetOptions(merge: true));
+    // write the id into the document for consistent reads
+    await _projects.doc(id).set({
+      ...project.toJson(),
+      'id': id,
+    }, SetOptions(merge: true));
   }
 
   @override

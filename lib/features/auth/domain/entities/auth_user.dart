@@ -3,10 +3,5 @@ class AuthUser {
   final String? email;
   final bool isAnonymous;
 
-  const AuthUser({
-    required this.id,
-    this.email,
-    this.isAnonymous = false,
-  });
+  const AuthUser({required this.id, this.email, this.isAnonymous = false});
 }
-  

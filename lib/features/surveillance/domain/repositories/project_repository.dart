@@ -3,5 +3,5 @@ import 'package:multicamera_tracking/features/surveillance/domain/entities/proje
 abstract class ProjectRepository {
   Future<List<Project>> getAll();
   Future<void> save(Project project);
-  Future<void> delete(String id); 
+  Future<void> delete(String id);
 }

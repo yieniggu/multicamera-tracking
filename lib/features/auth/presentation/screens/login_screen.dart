@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:multicamera_tracking/features/auth/presentation/screens/auth_gate.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:multicamera_tracking/features/auth/presentation/bloc/auth_bloc.dart';
@@ -47,12 +46,11 @@ class _LoginScreenState extends State<LoginScreen> {
     return BlocListener<AuthBloc, AuthState>(
       listener: (context, state) async {
         if (state is AuthAuthenticated) {
-          // Navigate to AuthGate (triggers repository reinit + HomeScreen)
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (_) => const AuthGate()),
-            (route) => false,
-          );
+          // AuthGate (underneath) will now rebuild to HomeScreen.
+          // We just close the Login route if it's on top.
+          if (Navigator.canPop(context)) {
+            Navigator.pop(context);
+          }
         } else if (state is AuthFailure) {
           ScaffoldMessenger.of(
             context,

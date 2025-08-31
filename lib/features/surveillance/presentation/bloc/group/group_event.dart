@@ -51,5 +51,5 @@ class UnmarkGroupSaving extends GroupEvent {
   UnmarkGroupSaving(this.groupId, this.projectId);
 
   @override
-  List<Object?> get props => [groupId];
+  List<Object?> get props => [groupId, projectId];
 }

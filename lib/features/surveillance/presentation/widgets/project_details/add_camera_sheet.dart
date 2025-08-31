@@ -17,6 +17,7 @@ import 'package:multicamera_tracking/features/surveillance/domain/entities/proje
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/project/project_bloc.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/group/group_bloc.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/camera/camera_bloc.dart';
+import 'package:collection/collection.dart';
 
 class AddCameraSheet extends StatefulWidget {
   final Camera? existingCamera;

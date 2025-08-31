@@ -28,9 +28,7 @@ class ProjectRepositoryImpl implements ProjectRepository {
 
     final projects = isRemote ? remote.getAll(user.id) : local.getAll(user.id);
 
-    debugPrint(
-      "[PROJ-REPO-IMPL] Found the following projects: ${projects}",
-    );
+    debugPrint("[PROJ-REPO-IMPL] Found the following projects: $projects");
 
     return projects;
   }
