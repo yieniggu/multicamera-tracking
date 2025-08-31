@@ -12,12 +12,8 @@ class CameraLocalDatasource implements CameraDataSource {
 
   @override
   Future<List<Camera>> getAll(String userId) async {
-    debugPrint("[CAMERA-LOCAL-DS] Getting all cameras from user: $userId");
-
-    return box.values
-        .where((m) => m.userRoles.containsKey(userId))
-        .map((m) => m.toEntity())
-        .toList();
+    debugPrint("[CAMERA-LOCAL-DS] Getting all cameras (single local store)");
+    return box.values.map((m) => m.toEntity()).toList();
   }
 
   @override

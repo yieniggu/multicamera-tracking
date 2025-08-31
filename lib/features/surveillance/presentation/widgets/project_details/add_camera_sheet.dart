@@ -7,6 +7,7 @@ import 'package:multicamera_tracking/features/surveillance/presentation/bloc/cam
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/group/group_event.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/group/group_state.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/project/project_state.dart';
+import 'package:multicamera_tracking/shared/utils/app_mode.dart';
 import 'package:uuid/uuid.dart';
 import 'package:multicamera_tracking/config/di.dart';
 import 'package:multicamera_tracking/features/auth/domain/entities/access_role.dart';
@@ -91,39 +92,49 @@ class _AddCameraSheetState extends State<AddCameraSheet> {
 
     setState(() => _isSubmitting = true); // start loading
 
-    final now = DateTime.now();
-    final isEditing = widget.existingCamera != null;
-    final id = isEditing ? widget.existingCamera!.id : const Uuid().v4();
+    try {
+      final now = DateTime.now();
+      final isEditing = widget.existingCamera != null;
+      final id = isEditing ? widget.existingCamera!.id : const Uuid().v4();
 
-    final user = getIt<AuthRepository>().currentUser!;
-    final camera = Camera(
-      id: id,
-      name: _nameController.text.trim(),
-      description: _descriptionController.text.trim(),
-      rtspUrl: _urlController.text.trim(),
-      thumbnailUrl: _thumbnailController.text.trim().isEmpty
-          ? null
-          : _thumbnailController.text.trim(),
-      groupId: _selectedGroup!.id,
-      projectId: _selectedProject!.id,
-      userRoles: isEditing
-          ? widget.existingCamera!.userRoles
-          : {user.id: AccessRole.admin},
-      createdAt: widget.existingCamera?.createdAt ?? now,
-      updatedAt: now,
-    );
+      final user = getIt<AuthRepository>().currentUser!;
+      final camera = Camera(
+        id: id,
+        name: _nameController.text.trim(),
+        description: _descriptionController.text.trim(),
+        rtspUrl: _urlController.text.trim(),
+        thumbnailUrl: _thumbnailController.text.trim().isEmpty
+            ? null
+            : _thumbnailController.text.trim(),
+        groupId: _selectedGroup!.id,
+        projectId: _selectedProject!.id,
+        userRoles: isEditing
+            ? widget.existingCamera!.userRoles
+            : {user.id: AccessRole.admin},
+        createdAt: widget.existingCamera?.createdAt ?? now,
+        updatedAt: now,
+      );
 
-    final bloc = context.read<CameraBloc>();
+      final bloc = context.read<CameraBloc>();
 
-    late final StreamSubscription sub;
-    sub = bloc.stream.listen((state) {
-      if (state is CameraLoaded) {
-        sub.cancel();
-        if (mounted) Navigator.pop(context);
+      late final StreamSubscription sub;
+      sub = bloc.stream.listen((state) {
+        if (state is CameraLoaded) {
+          sub.cancel();
+          if (mounted) Navigator.pop(context);
+        }
+      });
+
+      bloc.add(AddOrUpdateCamera(camera));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.toString())));
       }
-    });
-
-    bloc.add(AddOrUpdateCamera(camera));
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   @override
@@ -165,8 +176,7 @@ class _AddCameraSheetState extends State<AddCameraSheet> {
         : projects.first;
 
     // All available groups for the selected project
-    final allGroups =
-        (groupState as GroupLoaded).grouped[_selectedProject!.id] ?? [];
+    final allGroups = (groupState).grouped[_selectedProject!.id] ?? [];
 
     // Ensure group is selected
     _selectedGroup ??= isEditing
@@ -175,6 +185,17 @@ class _AddCameraSheetState extends State<AddCameraSheet> {
             orElse: () => allGroups.first,
           )
         : allGroups.firstOrNull;
+
+    final camState = context.watch<CameraBloc>().state;
+    final currentCamCount =
+        (camState is CameraLoaded &&
+            _selectedProject != null &&
+            _selectedGroup != null)
+        ? camState.getCameras(_selectedProject!.id, _selectedGroup!.id).length
+        : 0;
+
+    final trial = isTrialLocalMode();
+    final blocked = trial && !isEditing && currentCamCount >= 4;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -254,8 +275,24 @@ class _AddCameraSheetState extends State<AddCameraSheet> {
                 ),
               ),
               const SizedBox(height: 16),
+              if (blocked)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: const [
+                      Icon(Icons.info_outline, size: 16),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          "Trial limit: max 4 cameras per group in guest mode.",
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
               ElevatedButton(
-                onPressed: _isSubmitting ? null : _submit,
+                onPressed: _isSubmitting || blocked ? null : _submit,
                 child: _isSubmitting
                     ? const SizedBox(
                         width: 20,
@@ -267,7 +304,6 @@ class _AddCameraSheetState extends State<AddCameraSheet> {
                       )
                     : Text(isEditing ? "Save Changes" : "Add Camera"),
               ),
-
               const SizedBox(height: 20),
             ],
           ),

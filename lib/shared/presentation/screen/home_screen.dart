@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import 'package:multicamera_tracking/config/di.dart';
-import 'package:multicamera_tracking/features/auth/domain/repositories/auth_repository.dart';
 import 'package:multicamera_tracking/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:multicamera_tracking/features/auth/presentation/bloc/auth_event.dart';
 import 'package:multicamera_tracking/features/auth/presentation/screens/login_screen.dart';
@@ -24,6 +22,8 @@ import 'package:multicamera_tracking/features/surveillance/presentation/screens/
 import 'package:multicamera_tracking/features/surveillance/presentation/widgets/home/add_project_sheet.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/widgets/home/project_tile.dart';
 
+import 'package:multicamera_tracking/shared/utils/app_mode.dart';
+
 class HomeScreen extends StatefulWidget {
   final bool isGuest;
 
@@ -34,7 +34,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final _auth = getIt<AuthRepository>();
   bool _isLoadingData = true;
 
   @override
@@ -155,6 +154,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isTrial = isTrialLocalMode();
+    // derive FAB disabled state from current ProjectBloc state
+    final projectsCount = context.select<ProjectBloc, int>((bloc) {
+      final s = bloc.state;
+      return s is ProjectsLoaded ? s.projects.length : 0;
+    });
+    final addDisabled = isTrial && projectsCount >= 1;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("Camera Viewer"),
@@ -213,11 +220,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 return const SizedBox.shrink();
               },
             ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showProjectSheet(),
-        tooltip: "Add Project",
-        child: const Icon(Icons.add),
+      floatingActionButton: Builder(
+        builder: (ctx) => FloatingActionButton(
+          onPressed: addDisabled ? null : () => _showProjectSheet(),
+          tooltip: addDisabled
+              ? "Trial limit: 1 project in guest mode"
+              : "Add Project",
+          child: const Icon(Icons.add),
+        ),
       ),
+
       bottomNavigationBar: widget.isGuest
           ? Padding(
               padding: const EdgeInsets.all(12.0),

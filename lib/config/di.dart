@@ -63,18 +63,15 @@ import 'package:multicamera_tracking/features/surveillance/presentation/bloc/pro
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/group/group_bloc.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/camera/camera_bloc.dart';
 
+import 'package:multicamera_tracking/shared/utils/app_mode.dart';
+
 final GetIt getIt = GetIt.instance;
 
 /// Shared flag to switch between local and remote data sources
-final useRemoteNotifier = ValueNotifier<bool>(false);
 
 Future<void> initDependencies() async {
   debugPrint("[DI] Initializing Dependencies...");
   try {
-    // Register shared remote toggle
-    getIt.registerSingleton<ValueNotifier<bool>>(useRemoteNotifier);
-    getIt.registerSingleton<ValueListenable<bool>>(useRemoteNotifier);
-
     await Firebase.initializeApp();
     await Hive.initFlutter();
 
@@ -121,7 +118,7 @@ Future<void> initDependencies() async {
       () => CameraRepositoryImpl(
         local: getIt(),
         remote: getIt(),
-        useRemote: getIt(),
+        useRemote: remoteEnabled,
       ),
     );
 
@@ -129,7 +126,7 @@ Future<void> initDependencies() async {
       () => GroupRepositoryImpl(
         local: getIt(),
         remote: getIt(),
-        useRemote: getIt(),
+        useRemote: remoteEnabled,
       ),
     );
 
@@ -138,7 +135,7 @@ Future<void> initDependencies() async {
         local: getIt(),
         remote: getIt(),
         authRepository: getIt(),
-        useRemote: getIt(),
+        useRemote: remoteEnabled,
       ),
     );
 

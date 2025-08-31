@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:multicamera_tracking/features/surveillance/presentation/bloc/project/project_state.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:multicamera_tracking/config/di.dart';
@@ -8,6 +9,7 @@ import 'package:multicamera_tracking/features/auth/domain/repositories/auth_repo
 import 'package:multicamera_tracking/features/surveillance/domain/entities/project.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/project/project_bloc.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/project/project_event.dart';
+import 'package:multicamera_tracking/shared/utils/app_mode.dart';
 
 class AddProjectSheet extends StatefulWidget {
   final Project? existingProject;
@@ -70,6 +72,12 @@ class _AddProjectSheetState extends State<AddProjectSheet> {
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.existingProject != null;
+    final projects = context.select<ProjectBloc, List<Project>>((bloc) {
+      final s = bloc.state;
+      return s is ProjectsLoaded ? s.projects : <Project>[];
+    });
+    final trial = isTrialLocalMode();
+    final blocked = trial && !isEditing && projects.isNotEmpty;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -101,8 +109,23 @@ class _AddProjectSheetState extends State<AddProjectSheet> {
                 decoration: const InputDecoration(labelText: "Description"),
               ),
               const SizedBox(height: 16),
+              if (blocked)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: const [
+                      Icon(Icons.info_outline, size: 16),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          "Trial limit: only 1 project allowed in guest mode.",
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ElevatedButton(
-                onPressed: _submit,
+                onPressed: blocked ? null : _submit,
                 child: Text(isEditing ? "Save Changes" : "Add Project"),
               ),
               const SizedBox(height: 20),

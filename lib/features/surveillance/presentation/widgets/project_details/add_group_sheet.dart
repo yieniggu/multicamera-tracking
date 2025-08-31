@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/group/group_state.dart';
+import 'package:multicamera_tracking/shared/utils/app_mode.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:multicamera_tracking/config/di.dart';
@@ -85,6 +86,12 @@ class _AddGroupSheetState extends State<AddGroupSheet> {
       });
 
       bloc.add(AddOrUpdateGroup(group));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -100,6 +107,16 @@ class _AddGroupSheetState extends State<AddGroupSheet> {
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.existingGroup != null;
+
+    final groups = context.select<GroupBloc, List<Group>>((bloc) {
+      final s = bloc.state;
+      if (s is GroupLoaded) {
+        return s.getGroups(widget.projectId);
+      }
+      return <Group>[];
+    });
+    final trial = isTrialLocalMode();
+    final blocked = trial && !isEditing && groups.length >= 1;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -131,8 +148,24 @@ class _AddGroupSheetState extends State<AddGroupSheet> {
                 decoration: const InputDecoration(labelText: "Description"),
               ),
               const SizedBox(height: 16),
+              if (blocked)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: const [
+                      Icon(Icons.info_outline, size: 16),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          "Trial limit: only 1 group per project in guest mode.",
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
               ElevatedButton(
-                onPressed: _isSubmitting ? null : _submit,
+                onPressed: _isSubmitting || blocked ? null : _submit,
                 child: _isSubmitting
                     ? const SizedBox(
                         width: 20,
@@ -144,6 +177,7 @@ class _AddGroupSheetState extends State<AddGroupSheet> {
                       )
                     : Text(isEditing ? "Save Changes" : "Add Group"),
               ),
+
               const SizedBox(height: 20),
             ],
           ),

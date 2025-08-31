@@ -34,11 +34,26 @@ class ProjectRepositoryImpl implements ProjectRepository {
   }
 
   @override
-  Future<void> save(Project project) {
+  Future<void> save(Project project) async {
     debugPrint(
       "[PROJ-REPO-IMPL] saving new project ${project.toString()}. (remote=$isRemote)",
     );
-    return isRemote ? remote.save(project) : local.save(project);
+
+    if (!isRemote) {
+      // Local trial mode: allow max 1 project
+      final user = authRepository.currentUser;
+      if (user == null) throw Exception("[PROJ-REPO] No authenticated user.");
+      final existing = await local.getAll(
+        user.id,
+      ); // local DS ignores userId anyway
+      final isEditing = existing.any((p) => p.id == project.id);
+      if (!isEditing && existing.isNotEmpty) {
+        throw Exception("Trial limit reached: only 1 project in guest mode.");
+      }
+      return local.save(project);
+    }
+
+    return remote.save(project);
   }
 
   @override
