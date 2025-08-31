@@ -47,6 +47,8 @@ import 'package:multicamera_tracking/features/surveillance/domain/use_cases/proj
 import 'package:multicamera_tracking/shared/services_impl/guest_data_service_impl.dart';
 import 'package:multicamera_tracking/shared/services_impl/init_user_data_service_impl.dart';
 import 'package:multicamera_tracking/shared/services_impl/guest_data_migration_service_impl.dart';
+import 'package:multicamera_tracking/shared/domain/services/quota_guard.dart';
+import 'package:multicamera_tracking/shared/services_impl/quota_guard_impl.dart';
 
 // Use Cases
 import 'package:multicamera_tracking/features/auth/domain/use_cases/get_current_user.dart';
@@ -172,6 +174,11 @@ Future<void> initDependencies() async {
       ),
     );
 
+    getIt.registerLazySingleton<QuotaGuard>(
+      () =>
+          QuotaGuardImpl(projects: getIt(), groups: getIt(), cameras: getIt()),
+    );
+
     // Auth Use Cases
     getIt.registerLazySingleton<GetCurrentUserUseCase>(
       () => GetCurrentUserUseCase(getIt()),
@@ -211,7 +218,7 @@ Future<void> initDependencies() async {
       () => GetAllProjectsUseCase(getIt()),
     );
     getIt.registerLazySingleton<SaveProjectUseCase>(
-      () => SaveProjectUseCase(getIt()),
+      () => SaveProjectUseCase(getIt(), getIt()),
     );
     getIt.registerLazySingleton<DeleteProjectUseCase>(
       () => DeleteProjectUseCase(getIt()),
@@ -231,7 +238,7 @@ Future<void> initDependencies() async {
       () => GetAllGroupsByProjectUseCase(getIt()),
     );
     getIt.registerLazySingleton<SaveGroupUseCase>(
-      () => SaveGroupUseCase(getIt()),
+      () => SaveGroupUseCase(getIt(), getIt()),
     );
     getIt.registerLazySingleton<DeleteGroupUseCase>(
       () => DeleteGroupUseCase(getIt()),
@@ -251,7 +258,7 @@ Future<void> initDependencies() async {
       () => GetCamerasByGroupUseCase(getIt()),
     );
     getIt.registerLazySingleton<SaveCameraUseCase>(
-      () => SaveCameraUseCase(getIt()),
+      () => SaveCameraUseCase(getIt(), getIt()),
     );
     getIt.registerLazySingleton<DeleteCameraByGroupUseCase>(
       () => DeleteCameraByGroupUseCase(getIt()),

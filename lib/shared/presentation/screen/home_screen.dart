@@ -21,6 +21,7 @@ import 'package:multicamera_tracking/features/surveillance/presentation/bloc/cam
 import 'package:multicamera_tracking/features/surveillance/presentation/screens/project_details_screen.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/widgets/home/add_project_sheet.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/widgets/home/project_tile.dart';
+import 'package:multicamera_tracking/shared/constants/quota.dart';
 
 import 'package:multicamera_tracking/shared/utils/app_mode.dart';
 
@@ -35,68 +36,14 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   bool _isLoadingData = true;
+  // Track which (projectId|groupId) have had their cameras requested
+  final Set<String> _requestedCameraForGroup = {};
 
   @override
   void initState() {
     super.initState();
-
-    _loadUserData();
-  }
-
-  Future<void> _loadUserData() async {
-    final projectBloc = context.read<ProjectBloc>();
-    final groupBloc = context.read<GroupBloc>();
-    final cameraBloc = context.read<CameraBloc>();
-
-    // Load projects
-    projectBloc.add(LoadProjects());
-
-    // Wait for ProjectLoaded
-    await Future.doWhile(() async {
-      await Future.delayed(const Duration(milliseconds: 50));
-      return projectBloc.state is! ProjectsLoaded;
-    });
-
-    final projectState = projectBloc.state;
-    if (projectState is! ProjectsLoaded) return;
-
-    final allProjects = projectState.projects;
-
-    // Load groups sequentially per project
-    for (final project in allProjects) {
-      groupBloc.add(LoadGroupsByProject(project.id));
-
-      await Future.doWhile(() async {
-        await Future.delayed(const Duration(milliseconds: 50));
-        final groupState = groupBloc.state;
-        if (groupState is GroupLoaded) {
-          // Stop waiting when this project's groups are loaded (even if empty)
-          return !groupState.grouped.containsKey(project.id);
-        }
-        return true;
-      });
-    }
-
-    // Wait a little for UI sync (optional)
-    await Future.delayed(const Duration(milliseconds: 100));
-
-    // Load cameras for all groups across all projects
-    final groupState = groupBloc.state;
-    if (groupState is GroupLoaded) {
-      for (final project in allProjects) {
-        final groups = groupState.grouped[project.id] ?? [];
-        for (final group in groups) {
-          cameraBloc.add(LoadCamerasByGroup(group.projectId, group.id));
-        }
-      }
-    }
-
-    // Finish loading state
-    if (mounted) {
-      setState(() {
-        _isLoadingData = false;
-      });
-    }
+    // Kick off projects; rest cascades from listeners below
+    context.read<ProjectBloc>().add(LoadProjects());
   }
 
   void _navigateToLogin() {
@@ -107,7 +54,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _logout() async {
-    // Tell the bloc. AuthGate will rebuild to Login.
     if (mounted) {
       context.read<AuthBloc>().add(AuthSignedOut());
     }
@@ -155,91 +101,140 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final isTrial = isTrialLocalMode();
-    // derive FAB disabled state from current ProjectBloc state
     final projectsCount = context.select<ProjectBloc, int>((bloc) {
       final s = bloc.state;
       return s is ProjectsLoaded ? s.projects.length : 0;
     });
-    final addDisabled = isTrial && projectsCount >= 1;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Camera Viewer"),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Logout',
-            onPressed: _logout,
-          ),
-        ],
-      ),
-      body: _isLoadingData
-          ? const Center(child: CircularProgressIndicator())
-          : BlocBuilder<ProjectBloc, ProjectState>(
-              builder: (context, projectState) {
-                if (projectState is ProjectsLoading) {
-                  return const Center(child: CircularProgressIndicator());
+    return MultiBlocListener(
+      listeners: [
+        // When projects arrive, request groups for each
+        BlocListener<ProjectBloc, ProjectState>(
+          listenWhen: (prev, curr) => curr is ProjectsLoaded,
+          listener: (context, state) {
+            final projects = (state as ProjectsLoaded).projects;
+            for (final p in projects) {
+              context.read<GroupBloc>().add(LoadGroupsByProject(p.id));
+            }
+            if (mounted) setState(() => _isLoadingData = false);
+          },
+        ),
+        // When groups arrive for any project, request cameras per group (once)
+        BlocListener<GroupBloc, GroupState>(
+          listenWhen: (prev, curr) => curr is GroupLoaded,
+          listener: (context, state) {
+            final grouped = (state as GroupLoaded).grouped;
+            final camBloc = context.read<CameraBloc>();
+            grouped.forEach((projectId, groups) {
+              for (final g in groups) {
+                final key = '$projectId|${g.id}';
+                if (_requestedCameraForGroup.add(key)) {
+                  camBloc.add(LoadCamerasByGroup(projectId, g.id));
                 }
-
-                if (projectState is ProjectsLoaded) {
-                  final projects = projectState.projects;
-                  if (projects.isEmpty) {
-                    return const Center(child: Text("No projects found."));
+              }
+            });
+          },
+        ),
+      ],
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text("Camera Viewer"),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.logout),
+              tooltip: 'Logout',
+              onPressed: _logout,
+            ),
+          ],
+        ),
+        body: _isLoadingData
+            ? const Center(child: CircularProgressIndicator())
+            : BlocBuilder<ProjectBloc, ProjectState>(
+                builder: (context, projectState) {
+                  if (projectState is ProjectsLoading) {
+                    return const Center(child: CircularProgressIndicator());
                   }
 
-                  return BlocBuilder<GroupBloc, GroupState>(
-                    builder: (context, groupState) {
-                      return ListView.builder(
-                        itemCount: projects.length,
-                        itemBuilder: (context, index) {
-                          final project = projects[index];
-                          final groupCount = (groupState is GroupLoaded)
-                              ? groupState.grouped[project.id]?.length ?? 0
-                              : 0;
+                  if (projectState is ProjectsLoaded) {
+                    final projects = projectState.projects;
+                    if (projects.isEmpty) {
+                      return const Center(child: Text("No projects found."));
+                    }
 
-                          return ProjectTile(
-                            project: project,
-                            groupCount: groupCount,
-                            onTap: () => _goToProjectDetail(project),
-                            onEdit: () =>
-                                _showProjectSheet(existingProject: project),
-                            onDelete: project.isDefault
-                                ? null
-                                : () => _deleteProject(project),
-                          );
-                        },
-                      );
-                    },
-                  );
-                }
+                    return BlocBuilder<GroupBloc, GroupState>(
+                      builder: (context, groupState) {
+                        return ListView.builder(
+                          itemCount: projects.length,
+                          itemBuilder: (context, index) {
+                            final project = projects[index];
+                            final groupCount = (groupState is GroupLoaded)
+                                ? groupState.grouped[project.id]?.length ?? 0
+                                : 0;
 
-                if (projectState is ProjectsError) {
-                  return Center(child: Text(projectState.message));
-                }
+                            return ProjectTile(
+                              project: project,
+                              groupCount: groupCount,
+                              onTap: () => _goToProjectDetail(project),
+                              onEdit: () =>
+                                  _showProjectSheet(existingProject: project),
+                              onDelete: project.isDefault
+                                  ? null
+                                  : () => _deleteProject(project),
+                            );
+                          },
+                        );
+                      },
+                    );
+                  }
 
-                return const SizedBox.shrink();
-              },
-            ),
-      floatingActionButton: Builder(
-        builder: (ctx) => FloatingActionButton(
-          onPressed: addDisabled ? null : () => _showProjectSheet(),
-          tooltip: addDisabled
-              ? "Trial limit: 1 project in guest mode"
-              : "Add Project",
-          child: const Icon(Icons.add),
-        ),
-      ),
+                  if (projectState is ProjectsError) {
+                    return Center(child: Text(projectState.message));
+                  }
 
-      bottomNavigationBar: widget.isGuest
-          ? Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: ElevatedButton.icon(
-                onPressed: _navigateToLogin,
-                icon: const Icon(Icons.login),
-                label: const Text("Want to restore data anywhere? Log in"),
+                  return const SizedBox.shrink();
+                },
               ),
-            )
-          : null,
+        floatingActionButton: Builder(
+          builder: (ctx) {
+            void _onFabPressed() {
+              final isTrial = isTrialLocalMode();
+              final s = ctx.read<ProjectBloc>().state;
+              final count = s is ProjectsLoaded ? s.projects.length : 0;
+
+              if (isTrial && count >= Quota.projects) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      "Trial limit: max ${Quota.projects} project in guest mode.",
+                    ),
+                  ),
+                );
+                return;
+              }
+              _showProjectSheet();
+            }
+
+            return FloatingActionButton(
+              onPressed: _onFabPressed,
+              tooltip: isTrial
+                  ? "Trial: $projectsCount/${Quota.projects} project"
+                  : "Add Project",
+              child: const Icon(Icons.add),
+            );
+          },
+        ),
+
+        bottomNavigationBar: widget.isGuest
+            ? Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: ElevatedButton.icon(
+                  onPressed: _navigateToLogin,
+                  icon: const Icon(Icons.login),
+                  label: const Text("Want to restore data anywhere? Log in"),
+                ),
+              )
+            : null,
+      ),
     );
   }
 }
