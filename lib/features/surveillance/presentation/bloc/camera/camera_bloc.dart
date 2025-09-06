@@ -1,9 +1,12 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:multicamera_tracking/features/surveillance/domain/entities/camera.dart';
 import 'package:multicamera_tracking/features/surveillance/domain/use_cases/camera/delete_camera_by_group.dart';
 import 'package:multicamera_tracking/features/surveillance/domain/use_cases/camera/get_cameras_by_group.dart';
 import 'package:multicamera_tracking/features/surveillance/domain/use_cases/camera/save_camera.dart';
+import 'package:multicamera_tracking/shared/domain/events/surveillance_event.dart';
+import 'package:multicamera_tracking/shared/domain/services/event_bus.dart';
 
 import 'camera_event.dart';
 import 'camera_state.dart';
@@ -12,35 +15,40 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
   final GetCamerasByGroupUseCase getCamerasByGroup;
   final SaveCameraUseCase saveCamera;
   final DeleteCameraByGroupUseCase deleteCamera;
+  final SurveillanceEventBus bus;
+
+  late final StreamSubscription _busSub;
 
   CameraBloc({
     required this.getCamerasByGroup,
     required this.saveCamera,
     required this.deleteCamera,
+    required this.bus,
   }) : super(CameraInitial()) {
     on<LoadCamerasByGroup>(_onLoadCameras);
     on<AddOrUpdateCamera>(_onSaveCamera);
     on<DeleteCamera>(_onDeleteCamera);
     on<MarkCameraSaving>(_onMarkSaving);
     on<UnmarkCameraSaving>(_onUnmarkSaving);
+
+    _busSub = bus.stream.listen(_onBusEvent);
   }
 
-  /// Loads cameras for a specific project and group
+  @override
+  Future<void> close() async {
+    await _busSub.cancel();
+    return super.close();
+  }
+
   Future<void> _onLoadCameras(
     LoadCamerasByGroup event,
     Emitter<CameraState> emit,
   ) async {
-    debugPrint(
-      '[CameraBloc] Loading cameras for '
-      'project: ${event.projectId}, group: ${event.groupId}',
-    );
-
     try {
       final newCameras = await getCamerasByGroup(
         event.projectId,
         event.groupId,
       );
-
       final currentGrouped = state is CameraLoaded
           ? cloneGroupedCameraMap((state as CameraLoaded).grouped)
           : <String, Map<String, List<Camera>>>{};
@@ -53,92 +61,116 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
           : <String>{};
 
       emit(CameraLoaded(grouped: currentGrouped, savingCameraIds: savingIds));
-
-      debugPrint('[CameraBloc] Loaded ${newCameras.length} cameras.');
     } catch (e, stack) {
-      debugPrint('[CameraBloc] Failed to load cameras: $e\n$stack');
+      // keep errors visible but don’t crash the stream
+      // ignore: avoid_print
+      print('[CameraBloc] load error: $e\n$stack');
       emit(CameraError(e.toString()));
     }
   }
 
-  /// ons saving (create/update) a camera
   Future<void> _onSaveCamera(
     AddOrUpdateCamera event,
     Emitter<CameraState> emit,
   ) async {
     final cam = event.camera;
-    debugPrint('[CameraBloc] Saving camera: ${cam.id}');
-
     add(MarkCameraSaving(cam.id));
-
     try {
       await saveCamera(cam);
-
-      debugPrint('[CameraBloc] Camera saved. Reloading group...');
-      add(LoadCamerasByGroup(cam.projectId, cam.groupId));
+      // no reload; repo emits CameraUpserted
     } catch (e, stack) {
-      debugPrint('[CameraBloc] Failed to save camera: $e\n$stack');
-      emit(CameraError(e.toString()));
+      // Do NOT emit CameraError here; keep current list visible.
+      // The sheet/UI will show a snackbar from its own catch.
+      // ignore: avoid_print
+      print('[CameraBloc] save error: $e\n$stack');
     } finally {
       add(UnmarkCameraSaving(cam.id));
     }
   }
 
-  /// ons deleting a camera
   Future<void> _onDeleteCamera(
     DeleteCamera event,
     Emitter<CameraState> emit,
   ) async {
     final cam = event.camera;
-    debugPrint('[CameraBloc] Deleting camera: ${cam.id}');
-
     add(MarkCameraSaving(cam.id));
-
     try {
       await deleteCamera(cam.projectId, cam.groupId, cam.id);
-
-      debugPrint('[CameraBloc] Camera deleted. Reloading group...');
-      add(LoadCamerasByGroup(cam.projectId, cam.groupId));
+      // no reload; repo emits CameraDeleted
     } catch (e, stack) {
-      debugPrint('[CameraBloc] Failed to delete camera: $e\n$stack');
-      emit(CameraError(e.toString()));
+      // Do NOT emit CameraError; keep list visible.
+      // ignore: avoid_print
+      print('[CameraBloc] delete error: $e\n$stack');
     } finally {
       add(UnmarkCameraSaving(cam.id));
     }
   }
 
-  /// Adds the camera to the saving set (used to show UI loading indicators)
   void _onMarkSaving(MarkCameraSaving event, Emitter<CameraState> emit) {
     final current = state;
     if (current is! CameraLoaded) return;
-
-    final updatedSet = {...current.savingCameraIds, event.cameraId};
-
-    emit(current.copyWith(savingCameraIds: updatedSet));
-    debugPrint('[CameraBloc] Marked camera ${event.cameraId} as saving.');
+    emit(
+      current.copyWith(
+        savingCameraIds: {...current.savingCameraIds, event.cameraId},
+      ),
+    );
   }
 
-  /// Removes the camera from the saving set
   void _onUnmarkSaving(UnmarkCameraSaving event, Emitter<CameraState> emit) {
     final current = state;
     if (current is! CameraLoaded) return;
-
-    final updatedSet = Set<String>.from(current.savingCameraIds)
+    final updated = Set<String>.from(current.savingCameraIds)
       ..remove(event.cameraId);
+    emit(current.copyWith(savingCameraIds: updated));
+  }
 
-    emit(current.copyWith(savingCameraIds: updatedSet));
-    debugPrint('[CameraBloc] Unmarked camera ${event.cameraId} as saving.');
+  void _onBusEvent(SurveillanceEvent e) {
+    final current = state;
+
+    final grouped = current is CameraLoaded
+        ? cloneGroupedCameraMap(current.grouped)
+        : <String, Map<String, List<Camera>>>{};
+
+    final saving = current is CameraLoaded
+        ? current.savingCameraIds
+        : <String>{};
+
+    if (e is CameraUpserted) {
+      final p = e.camera.projectId;
+      final g = e.camera.groupId;
+      final list = List<Camera>.from(grouped[p]?[g] ?? const []);
+      final idx = list.indexWhere((c) => c.id == e.camera.id);
+      if (idx >= 0) {
+        list[idx] = e.camera;
+      } else {
+        list.add(e.camera);
+      }
+      grouped[p] ??= {};
+      grouped[p]![g] = list;
+
+      emit(CameraLoaded(grouped: grouped, savingCameraIds: saving));
+    } else if (e is CameraDeleted) {
+      final p = e.projectId, g = e.groupId;
+      final list = List<Camera>.from(grouped[p]?[g] ?? const []);
+      grouped[p] ??= {};
+      grouped[p]![g] = list.where((c) => c.id != e.cameraId).toList();
+
+      emit(CameraLoaded(grouped: grouped, savingCameraIds: saving));
+    } else if (e is CamerasClearedForGroup) {
+      final p = e.projectId, g = e.groupId;
+      grouped[p] ??= {};
+      grouped[p]![g] = <Camera>[];
+
+      emit(CameraLoaded(grouped: grouped, savingCameraIds: saving));
+    }
   }
 }
 
-/// Clones the nested grouped camera map with preserved type safety.
-/// Clones the nested grouped camera map with preserved type safety.
-/// Prevents `Map<dynamic, dynamic>` type issues when copying from state.
+/// safe clone (preserves types)
 Map<String, Map<String, List<Camera>>> cloneGroupedCameraMap(
   Map<String, Map<String, List<Camera>>> original,
 ) {
   return original.map(
-    (projectId, groupMap) =>
-        MapEntry(projectId, Map<String, List<Camera>>.from(groupMap)),
+    (pid, groupMap) => MapEntry(pid, Map<String, List<Camera>>.from(groupMap)),
   );
 }

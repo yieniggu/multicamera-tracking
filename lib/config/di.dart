@@ -31,6 +31,7 @@ import 'package:multicamera_tracking/features/auth/domain/repositories/auth_repo
 import 'package:multicamera_tracking/features/surveillance/domain/repositories/camera_repository.dart';
 import 'package:multicamera_tracking/features/surveillance/domain/repositories/group_repository.dart';
 import 'package:multicamera_tracking/features/surveillance/domain/repositories/project_repository.dart';
+import 'package:multicamera_tracking/shared/domain/services/event_bus.dart';
 
 // Services
 import 'package:multicamera_tracking/shared/domain/services/init_user_data_service.dart';
@@ -115,12 +116,18 @@ Future<void> initDependencies() async {
       () => ProjectRemoteDataSource(firestore: getIt()),
     );
 
+    // Event bus
+    getIt.registerLazySingleton<SurveillanceEventBus>(
+      () => SurveillanceEventBus(),
+    );
+
     // Repositories
     getIt.registerLazySingleton<CameraRepository>(
       () => CameraRepositoryImpl(
         local: getIt(),
         remote: getIt(),
         useRemote: remoteEnabled,
+        bus: getIt<SurveillanceEventBus>(),
       ),
     );
 
@@ -129,6 +136,7 @@ Future<void> initDependencies() async {
         local: getIt(),
         remote: getIt(),
         useRemote: remoteEnabled,
+        bus: getIt<SurveillanceEventBus>(),
       ),
     );
 
@@ -138,6 +146,7 @@ Future<void> initDependencies() async {
         remote: getIt(),
         authRepository: getIt(),
         useRemote: remoteEnabled,
+        bus: getIt<SurveillanceEventBus>(),
       ),
     );
 
@@ -230,6 +239,7 @@ Future<void> initDependencies() async {
         getAllProjectsUseCase: getIt(),
         saveProjectUseCase: getIt(),
         deleteProjectUseCase: getIt(),
+        bus: getIt(),
       ),
     );
 
@@ -250,6 +260,7 @@ Future<void> initDependencies() async {
         getAllGroupsByProjectUseCase: getIt(),
         saveGroupUseCase: getIt(),
         deleteGroupUseCase: getIt(),
+        bus: getIt(),
       ),
     );
 
@@ -270,6 +281,7 @@ Future<void> initDependencies() async {
         getCamerasByGroup: getIt(),
         saveCamera: getIt(),
         deleteCamera: getIt(),
+        bus: getIt(),
       ),
     );
 
