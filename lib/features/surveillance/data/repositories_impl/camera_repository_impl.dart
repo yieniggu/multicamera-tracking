@@ -1,8 +1,8 @@
-// data/repositories_impl/camera_repository_impl.dart
-
 import 'package:flutter/foundation.dart';
 import 'package:multicamera_tracking/features/surveillance/data/datasources/local/camera_local_datasource.dart';
 import 'package:multicamera_tracking/features/surveillance/data/datasources/remote/camera_remote_datasource.dart';
+import 'package:multicamera_tracking/shared/domain/services/event_bus.dart';
+import 'package:multicamera_tracking/shared/domain/events/surveillance_event.dart';
 import '../../domain/entities/camera.dart';
 import '../../domain/repositories/camera_repository.dart';
 
@@ -10,11 +10,13 @@ class CameraRepositoryImpl implements CameraRepository {
   final CameraLocalDatasource local;
   final CameraRemoteDatasource remote;
   final ValueListenable<bool> useRemote;
+  final SurveillanceEventBus bus;
 
   CameraRepositoryImpl({
     required this.local,
     required this.remote,
     required this.useRemote,
+    required this.bus,
   });
 
   bool get isRemote => useRemote.value;
@@ -34,7 +36,7 @@ class CameraRepositoryImpl implements CameraRepository {
   @override
   Future<void> save(Camera camera) async {
     if (!isRemote) {
-      // Local trial mode: allow max 4 cameras per group
+      // trial: max 4 cameras per group (local only)
       final current = await local.getAllByGroup(
         camera.projectId,
         camera.groupId,
@@ -45,22 +47,31 @@ class CameraRepositoryImpl implements CameraRepository {
           "Trial limit reached: max 4 cameras per group in guest mode.",
         );
       }
-      return local.save(camera);
+      await local.save(camera);
+    } else {
+      await remote.save(camera);
     }
-    return remote.save(camera);
+    // notify after successful write
+    bus.emit(CameraUpserted(camera));
   }
 
   @override
-  Future<void> deleteById(String projectId, String groupId, String id) {
-    return isRemote
-        ? remote.deleteById(projectId, groupId, id)
-        : local.deleteById(projectId, groupId, id);
+  Future<void> deleteById(String projectId, String groupId, String id) async {
+    if (isRemote) {
+      await remote.deleteById(projectId, groupId, id);
+    } else {
+      await local.deleteById(projectId, groupId, id);
+    }
+    bus.emit(CameraDeleted(projectId, groupId, id));
   }
 
   @override
-  Future<void> clearAllByGroup(String projectId, String groupId) {
-    return isRemote
-        ? remote.clearAllByGroup(projectId, groupId)
-        : local.clearAllByGroup(projectId, groupId);
+  Future<void> clearAllByGroup(String projectId, String groupId) async {
+    if (isRemote) {
+      await remote.clearAllByGroup(projectId, groupId);
+    } else {
+      await local.clearAllByGroup(projectId, groupId);
+    }
+    bus.emit(CamerasClearedForGroup(projectId, groupId));
   }
 }
