@@ -59,7 +59,10 @@ class GuestDataMigrationServiceImpl implements GuestDataMigrationService {
         );
 
         for (final camera in localCameras) {
-          await remoteCamera.save(camera);
+          final updatedCamera = camera.copyWith(
+            userRoles: {userId: AccessRole.admin},
+          );
+          await remoteCamera.save(updatedCamera);
           debugPrint("[MIGRATION]     └ Saved camera ${camera.name}");
         }
       }

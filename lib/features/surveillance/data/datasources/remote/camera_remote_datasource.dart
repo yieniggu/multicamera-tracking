@@ -43,18 +43,29 @@ class CameraRemoteDatasource implements CameraDataSource {
           groupId,
         ).get();
         allCameras.addAll(
-          camerasSnapshot.docs.map((doc) => Camera.fromJson(doc.data())),
+          camerasSnapshot.docs.map((doc) {
+            final data = doc.data();
+            data['id'] = doc.id;
+            data['projectId'] = projectId;
+            data['groupId'] = groupId;
+            return Camera.fromJson(data);
+          }),
         );
       }
     }
-
     return allCameras;
   }
 
   @override
   Future<List<Camera>> getAllByGroup(String projectId, String groupId) async {
     final snapshot = await _cameraCollection(projectId, groupId).get();
-    return snapshot.docs.map((doc) => Camera.fromJson(doc.data())).toList();
+    return snapshot.docs.map((doc) {
+      final data = doc.data();
+      data['id'] = doc.id;
+      data['projectId'] = projectId;
+      data['groupId'] = groupId;
+      return Camera.fromJson(data);
+    }).toList();
   }
 
   @override
@@ -70,9 +81,12 @@ class CameraRemoteDatasource implements CameraDataSource {
 
   @override
   Future<void> clearAllByGroup(String projectId, String groupId) async {
-    final snapshot = await _cameraCollection(projectId, groupId).get();
+    final col = _cameraCollection(projectId, groupId);
+    final snapshot = await col.get();
+    final batch = firestore.batch();
     for (final doc in snapshot.docs) {
-      await doc.reference.delete();
+      batch.delete(doc.reference);
     }
+    await batch.commit();
   }
 }

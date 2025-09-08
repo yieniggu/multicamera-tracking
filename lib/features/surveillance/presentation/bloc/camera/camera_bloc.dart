@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:multicamera_tracking/features/surveillance/domain/entities/camera.dart';
 import 'package:multicamera_tracking/features/surveillance/domain/use_cases/camera/delete_camera_by_group.dart';
@@ -31,7 +32,10 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
     on<MarkCameraSaving>(_onMarkSaving);
     on<UnmarkCameraSaving>(_onUnmarkSaving);
 
-    _busSub = bus.stream.listen(_onBusEvent);
+    _busSub = bus.stream.listen((e) {
+      debugPrint('[BUS→CameraBloc] bus=${bus.id} event=${e.runtimeType}');
+      _onBusEvent(e);
+    });
   }
 
   @override
@@ -44,6 +48,7 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
     LoadCamerasByGroup event,
     Emitter<CameraState> emit,
   ) async {
+    emit(const CameraLoading());
     try {
       final newCameras = await getCamerasByGroup(
         event.projectId,
@@ -62,9 +67,7 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
 
       emit(CameraLoaded(grouped: currentGrouped, savingCameraIds: savingIds));
     } catch (e, stack) {
-      // keep errors visible but don’t crash the stream
-      // ignore: avoid_print
-      print('[CameraBloc] load error: $e\n$stack');
+      debugPrint('[CameraBloc] load error: $e\n$stack');
       emit(CameraError(e.toString()));
     }
   }

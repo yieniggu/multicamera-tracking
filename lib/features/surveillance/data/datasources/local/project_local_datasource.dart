@@ -11,9 +11,8 @@ class ProjectLocalDatasource implements ProjectDataSource {
   ProjectLocalDatasource({required this.box});
 
   @override
-  Future<List<Project>> getAll(String? userId) async {
+  Future<List<Project>> getAll(String userId) async {
     debugPrint("[PROJ-LOCAL-DS] Getting all projects...");
-
     return box.values.map((m) => m.toEntity()).toList();
   }
 

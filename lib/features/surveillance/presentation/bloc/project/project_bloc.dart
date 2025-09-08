@@ -27,6 +27,8 @@ class ProjectBloc extends Bloc<ProjectEvent, ProjectState> {
     on<LoadProjects>(_onLoadAllProjects);
     on<AddOrUpdateProject>(_onSave);
     on<DeleteProject>(_onDelete);
+    on<MarkProjectSaving>(_onMarkSaving);
+    on<UnmarkProjectSaving>(_onUnmarkSaving);
 
     _busSub = bus.stream.listen(_onBusEvent);
   }
@@ -44,7 +46,10 @@ class ProjectBloc extends Bloc<ProjectEvent, ProjectState> {
     emit(ProjectsLoading());
     try {
       final projects = await getAllProjectsUseCase();
-      emit(ProjectsLoaded(projects));
+      final prevSaving = state is ProjectsLoaded
+          ? (state as ProjectsLoaded).savingProjectIds
+          : <String>{};
+      emit(ProjectsLoaded(projects, savingProjectIds: prevSaving));
     } catch (e) {
       emit(ProjectsError(e.toString()));
     }
@@ -54,11 +59,14 @@ class ProjectBloc extends Bloc<ProjectEvent, ProjectState> {
     AddOrUpdateProject event,
     Emitter<ProjectState> emit,
   ) async {
+    add(MarkProjectSaving(event.project.id));
     try {
       await saveProjectUseCase(event.project);
-      // repo will emit ProjectUpserted; no reload
+      // event bus will notify; no manual reload here
     } catch (e) {
       emit(ProjectsError(e.toString()));
+    } finally {
+      add(UnmarkProjectSaving(event.project.id));
     }
   }
 
@@ -66,12 +74,30 @@ class ProjectBloc extends Bloc<ProjectEvent, ProjectState> {
     DeleteProject event,
     Emitter<ProjectState> emit,
   ) async {
+    add(MarkProjectSaving(event.projectId));
     try {
       await deleteProjectUseCase(event.projectId);
-      // repo will emit ProjectDeleted; no reload
+      // event bus will notify; no manual reload here
     } catch (e) {
       emit(ProjectsError(e.toString()));
+    } finally {
+      add(UnmarkProjectSaving(event.projectId));
     }
+  }
+
+  void _onMarkSaving(MarkProjectSaving event, Emitter<ProjectState> emit) {
+    final curr = state;
+    if (curr is! ProjectsLoaded) return;
+    final updated = {...curr.savingProjectIds, event.projectId};
+    emit(curr.copyWith(savingProjectIds: updated));
+  }
+
+  void _onUnmarkSaving(UnmarkProjectSaving event, Emitter<ProjectState> emit) {
+    final curr = state;
+    if (curr is! ProjectsLoaded) return;
+    final updated = Set<String>.from(curr.savingProjectIds)
+      ..remove(event.projectId);
+    emit(curr.copyWith(savingProjectIds: updated));
   }
 
   void _onBusEvent(SurveillanceEvent e) {
@@ -86,10 +112,12 @@ class ProjectBloc extends Bloc<ProjectEvent, ProjectState> {
       } else {
         list.add(e.project);
       }
-      emit(ProjectsLoaded(list));
+      emit(curr.copyWith(projects: list));
     } else if (e is ProjectDeleted) {
       final list = curr.projects.where((p) => p.id != e.projectId).toList();
-      emit(ProjectsLoaded(list));
+      final saving = Set<String>.from(curr.savingProjectIds)
+        ..remove(e.projectId);
+      emit(curr.copyWith(projects: list, savingProjectIds: saving));
     }
   }
 }
