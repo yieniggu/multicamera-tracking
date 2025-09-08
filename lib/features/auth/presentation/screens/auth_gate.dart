@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:multicamera_tracking/features/auth/presentation/bloc/auth_bloc.dart';
-import 'package:multicamera_tracking/features/auth/presentation/bloc/auth_event.dart';
 import 'package:multicamera_tracking/features/auth/presentation/bloc/auth_state.dart';
 import 'package:multicamera_tracking/shared/presentation/screen/home_screen.dart';
 import 'package:multicamera_tracking/features/auth/presentation/screens/login_screen.dart';
@@ -17,8 +16,6 @@ class _AuthGateState extends State<AuthGate> {
   @override
   void initState() {
     super.initState();
-    // kick off the initial auth check
-    context.read<AuthBloc>().add(AuthCheckRequested());
   }
 
   @override
