@@ -38,6 +38,8 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoadingData = true;
   // Track which (projectId|groupId) have had their cameras requested
   final Set<String> _requestedCameraForGroup = {};
+  final Set<String> _requestedGroupsForProject = {};
+  final Map<String, int> _groupCountCache = {};
 
   @override
   void initState() {
@@ -113,17 +115,35 @@ class _HomeScreenState extends State<HomeScreen> {
           listenWhen: (prev, curr) => curr is ProjectsLoaded,
           listener: (context, state) {
             final projects = (state as ProjectsLoaded).projects;
+
+            // Request groups only for projects we've never requested before
             for (final p in projects) {
-              context.read<GroupBloc>().add(LoadGroupsByProject(p.id));
+              if (_requestedGroupsForProject.add(p.id)) {
+                context.read<GroupBloc>().add(LoadGroupsByProject(p.id));
+              }
             }
+
+            // Clean up removed projects (keeps the set tidy if you delete projects)
+            final currentIds = projects.map((p) => p.id).toSet();
+            _requestedGroupsForProject.removeWhere(
+              (pid) => !currentIds.contains(pid),
+            );
+
             if (mounted) setState(() => _isLoadingData = false);
           },
         ),
+
         // When groups arrive for any project, request cameras per group (once)
         BlocListener<GroupBloc, GroupState>(
           listenWhen: (prev, curr) => curr is GroupLoaded,
           listener: (context, state) {
             final grouped = (state as GroupLoaded).grouped;
+
+            // --- cache group counts so tiles never fall back to 0 while a reload runs ---
+            grouped.forEach((projectId, groups) {
+              _groupCountCache[projectId] = groups.length;
+            });
+
             final camBloc = context.read<CameraBloc>();
             grouped.forEach((projectId, groups) {
               for (final g in groups) {
@@ -167,19 +187,40 @@ class _HomeScreenState extends State<HomeScreen> {
                           itemCount: projects.length,
                           itemBuilder: (context, index) {
                             final project = projects[index];
-                            final groupCount = (groupState is GroupLoaded)
-                                ? groupState.grouped[project.id]?.length ?? 0
-                                : 0;
+
+                            // current group count
+                            final groupState = context.watch<GroupBloc>().state;
+                            final isSavingTile =
+                                (projectState is ProjectsLoaded)
+                                ? projectState.isSaving(project.id)
+                                : false;
+
+                            final hasGroupData = (groupState is GroupLoaded)
+                                ? (groupState.grouped.containsKey(project.id))
+                                : false;
+
+                            // Disable while saving OR until this project's groups arrive
+                            final disabled = isSavingTile || !hasGroupData;
+
+                            // Use cached count if available; avoid showing 0 on first load
+                            final computedGroupCount =
+                                (groupState is GroupLoaded)
+                                ? (groupState.grouped[project.id]?.length ??
+                                      _groupCountCache[project.id])
+                                : _groupCountCache[project.id];
 
                             return ProjectTile(
                               project: project,
-                              groupCount: groupCount,
                               onTap: () => _goToProjectDetail(project),
                               onEdit: () =>
                                   _showProjectSheet(existingProject: project),
                               onDelete: project.isDefault
                                   ? null
                                   : () => _deleteProject(project),
+                              groupCount: disabled && computedGroupCount == null
+                                  ? null
+                                  : computedGroupCount,
+                              disabled: disabled,
                             );
                           },
                         );

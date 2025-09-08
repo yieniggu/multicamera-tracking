@@ -69,13 +69,24 @@ class _AddCameraSheetState extends State<AddCameraSheet> {
     }
   }
 
-  void _onProjectChanged(Project? project, List<Group> allGroups) {
+  void _onProjectChanged(Project? project) {
     setState(() {
       _selectedProject = project;
-      final candidates = allGroups
-          .where((g) => g.projectId == project?.id)
-          .toList();
-      _selectedGroup = candidates.isNotEmpty ? candidates.first : null;
+    });
+
+    final groupState = context.read<GroupBloc>().state;
+    final groupsForProject = groupState is GroupLoaded
+        ? (groupState.grouped[project?.id] ?? const <Group>[])
+        : const <Group>[];
+
+    if (groupsForProject.isEmpty && project != null) {
+      context.read<GroupBloc>().add(LoadGroupsByProject(project.id));
+    }
+
+    setState(() {
+      _selectedGroup = groupsForProject.isNotEmpty
+          ? groupsForProject.first
+          : null;
     });
   }
 
@@ -242,7 +253,7 @@ class _AddCameraSheetState extends State<AddCameraSheet> {
                         (p) => DropdownMenuItem(value: p, child: Text(p.name)),
                       )
                       .toList(),
-                  onChanged: (p) => _onProjectChanged(p, allGroups),
+                  onChanged: _onProjectChanged,
                 ),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<Group>(
