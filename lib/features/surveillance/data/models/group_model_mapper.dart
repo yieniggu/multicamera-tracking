@@ -1,4 +1,4 @@
-import 'package:multicamera_tracking/features/auth/domain/entities/access_role.dart';
+import 'package:multicamera_tracking/shared/utils/role_parse.dart';
 
 import '../../domain/entities/group.dart';
 import 'group_model.dart';
@@ -10,9 +10,7 @@ extension GroupModelMapper on GroupModel {
     isDefault: isDefault,
     description: description,
     projectId: projectId,
-    userRoles: userRoles.map(
-      (k, v) => MapEntry(k, AccessRole.values.firstWhere((r) => r.name == v)),
-    ),
+    userRoles: userRoles.map((k, v) => MapEntry(k, parseAccessRole(v))),
     createdAt: createdAt,
     updatedAt: updatedAt,
   );
