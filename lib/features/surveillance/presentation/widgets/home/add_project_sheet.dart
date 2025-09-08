@@ -58,24 +58,7 @@ class _AddProjectSheetState extends State<AddProjectSheet> {
       updatedAt: now,
     );
 
-    final bloc = context.read<ProjectBloc>();
-
-    late final StreamSubscription sub;
-    sub = bloc.stream.listen((state) {
-      if (!mounted) return;
-      if (state is ProjectsLoaded) {
-        sub.cancel();
-        Navigator.pop(context);
-      } else if (state is ProjectsError) {
-        sub.cancel();
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(state.message)));
-      }
-    });
-
-    bloc.add(AddOrUpdateProject(project));
-
+    context.read<ProjectBloc>().add(AddOrUpdateProject(project));
     if (mounted) Navigator.pop(context);
   }
 

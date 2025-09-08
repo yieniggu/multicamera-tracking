@@ -122,7 +122,7 @@ class GroupList extends StatelessWidget {
                       children: [
                         Expanded(
                           child: GroupCard(
-                            key: UniqueKey(),
+                            key: ValueKey(group.id),
                             group: group,
                             onEdit: isSaving
                                 ? null
