@@ -25,6 +25,13 @@ class _LoginScreenState extends State<LoginScreen> {
     _checkIfAlreadyGuest();
   }
 
+  @override
+  void dispose() {
+    emailCtrl.dispose();
+    passCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _checkIfAlreadyGuest() async {
     final prefs = await SharedPreferences.getInstance();
     final isGuest = prefs.getBool('is_guest') ?? false;
