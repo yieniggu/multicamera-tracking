@@ -6,8 +6,14 @@ class SaveProjectUseCase {
   final ProjectRepository repo;
   final QuotaGuard quota;
   SaveProjectUseCase(this.repo, this.quota);
+
   Future<void> call(Project project) async {
-    await quota.ensureCanCreateProject();
+    // Only enforce quota if this is a *new* project
+    final existing = await repo.getAll();
+    final isEditing = existing.any((p) => p.id == project.id);
+    if (!isEditing) {
+      await quota.ensureCanCreateProject();
+    }
     await repo.save(project);
   }
 }

@@ -1,7 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter/foundation.dart';
 import 'package:multicamera_tracking/features/surveillance/domain/entities/group.dart';
 import 'package:multicamera_tracking/features/surveillance/domain/use_cases/group/delete_group.dart';
 import 'package:multicamera_tracking/features/surveillance/domain/use_cases/group/get_all_groups_by_project.dart';
@@ -32,7 +32,10 @@ class GroupBloc extends Bloc<GroupEvent, GroupState> {
     on<MarkGroupSaving>(_onMarkGroupSaving);
     on<UnmarkGroupSaving>(_onUnmarkGroupSaving);
 
-    _busSub = bus.stream.listen(_onBusEvent);
+    _busSub = bus.stream.listen((e) {
+      debugPrint('[BUS→GroupBloc] bus=${bus.id} event=${e.runtimeType}');
+      _onBusEvent(e);
+    });
   }
 
   @override
@@ -45,6 +48,7 @@ class GroupBloc extends Bloc<GroupEvent, GroupState> {
     LoadGroupsByProject event,
     Emitter<GroupState> emit,
   ) async {
+    emit(const GroupLoading());
     try {
       final groups = await getAllGroupsByProjectUseCase(event.projectId);
 
@@ -76,7 +80,23 @@ class GroupBloc extends Bloc<GroupEvent, GroupState> {
     add(MarkGroupSaving(event.group.id));
     try {
       await saveGroupUseCase(event.group);
-      // repo will emit GroupUpserted; no reload
+
+      // Optimistically update UI without waiting for the bus
+      final curr = state;
+      if (curr is GroupLoaded) {
+        final grouped = Map<String, List<Group>>.from(curr.grouped);
+        final list = List<Group>.from(
+          grouped[event.group.projectId] ?? const [],
+        );
+        final idx = list.indexWhere((g) => g.id == event.group.id);
+        if (idx >= 0) {
+          list[idx] = event.group;
+        } else {
+          list.add(event.group);
+        }
+        grouped[event.group.projectId] = list;
+        emit(curr.copyWith(grouped: grouped));
+      }
     } catch (e) {
       emit(GroupError("Failed to save group: $e"));
     } finally {

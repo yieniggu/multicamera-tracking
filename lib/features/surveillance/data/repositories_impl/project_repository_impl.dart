@@ -34,7 +34,6 @@ class ProjectRepositoryImpl implements ProjectRepository {
   @override
   Future<void> save(Project project) async {
     if (!isRemote) {
-      // trial: max 1 project (local only)
       final user = authRepository.currentUser;
       if (user == null) throw Exception("[PROJ-REPO] No authenticated user.");
       final existing = await local.getAll(user.id);
@@ -46,6 +45,7 @@ class ProjectRepositoryImpl implements ProjectRepository {
     } else {
       await remote.save(project);
     }
+    debugPrint('[REPO→BUS ${bus.id}] ProjectUpserted(${project.id})');
     bus.emit(ProjectUpserted(project));
   }
 

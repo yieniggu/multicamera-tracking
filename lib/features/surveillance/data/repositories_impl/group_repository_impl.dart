@@ -32,7 +32,6 @@ class GroupRepositoryImpl implements GroupRepository {
   @override
   Future<void> save(Group group) async {
     if (!isRemote) {
-      // trial: max 1 group per project (local only)
       final existing = await local.getAllByProject(group.projectId);
       final isEditing = existing.any((g) => g.id == group.id);
       if (!isEditing && existing.isNotEmpty) {
@@ -44,6 +43,7 @@ class GroupRepositoryImpl implements GroupRepository {
     } else {
       await remote.save(group);
     }
+    debugPrint('[REPO→BUS ${bus.id}] GroupUpserted(${group.id})');
     bus.emit(GroupUpserted(group));
   }
 

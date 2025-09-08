@@ -25,3 +25,21 @@ class DeleteProject extends ProjectEvent {
   @override
   List<Object?> get props => [projectId];
 }
+
+class MarkProjectSaving extends ProjectEvent {
+  final String projectId;
+
+  MarkProjectSaving(this.projectId);
+
+  @override
+  List<Object?> get props => [projectId];
+}
+
+class UnmarkProjectSaving extends ProjectEvent {
+  final String projectId;
+
+  UnmarkProjectSaving(this.projectId);
+
+  @override
+  List<Object?> get props => [projectId];
+}

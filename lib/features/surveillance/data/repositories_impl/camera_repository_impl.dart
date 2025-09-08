@@ -36,7 +36,6 @@ class CameraRepositoryImpl implements CameraRepository {
   @override
   Future<void> save(Camera camera) async {
     if (!isRemote) {
-      // trial: max 4 cameras per group (local only)
       final current = await local.getAllByGroup(
         camera.projectId,
         camera.groupId,
@@ -51,7 +50,7 @@ class CameraRepositoryImpl implements CameraRepository {
     } else {
       await remote.save(camera);
     }
-    // notify after successful write
+    debugPrint('[REPO→BUS ${bus.id}] CameraUpserted(${camera.id})');
     bus.emit(CameraUpserted(camera));
   }
 
@@ -62,6 +61,7 @@ class CameraRepositoryImpl implements CameraRepository {
     } else {
       await local.deleteById(projectId, groupId, id);
     }
+    debugPrint('[REPO→BUS ${bus.id}] CameraDeleted($id)');
     bus.emit(CameraDeleted(projectId, groupId, id));
   }
 
@@ -72,6 +72,9 @@ class CameraRepositoryImpl implements CameraRepository {
     } else {
       await local.clearAllByGroup(projectId, groupId);
     }
+    debugPrint(
+      '[REPO→BUS ${bus.id}] CamerasClearedForGroup($projectId, $groupId)',
+    );
     bus.emit(CamerasClearedForGroup(projectId, groupId));
   }
 }

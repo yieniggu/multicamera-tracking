@@ -17,6 +17,7 @@ class GroupRemoteDatasource implements GroupDataSource {
     final snapshot = await _groupCollection(projectId).get();
     final groups = snapshot.docs.map((doc) {
       final data = doc.data();
+      data['id'] = doc.id;
       debugPrint('[REMOTE-DS-GROUP-LOAD] ${data['id']} = ${data['name']}');
       return Group.fromJson(data);
     }).toList();
