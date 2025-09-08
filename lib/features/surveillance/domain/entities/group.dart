@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:multicamera_tracking/features/auth/domain/entities/access_role.dart';
+import 'package:multicamera_tracking/shared/utils/role_parse.dart';
 
 class Group extends Equatable {
   final String id;
@@ -50,7 +51,7 @@ class Group extends Equatable {
       description: json['description'] as String,
       projectId: json['projectId'] as String,
       userRoles: (json['userRoles'] as Map<String, dynamic>).map(
-        (k, v) => MapEntry(k, AccessRole.values.firstWhere((e) => e.name == v)),
+        (k, v) => MapEntry(k, parseAccessRole(v as String?)),
       ),
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
@@ -69,5 +70,9 @@ class Group extends Equatable {
   };
 
   @override
-  List<Object?> get props => [id];
+  List<Object?> get props => [
+    id,
+    // include a changing field so edits break equality and trigger rebuilds
+    updatedAt,
+  ];
 }
