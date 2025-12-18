@@ -1,49 +1,114 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+
 import 'package:multicamera_tracking/features/surveillance/domain/entities/camera.dart';
+import 'package:multicamera_tracking/features/surveillance/domain/entities/group.dart';
+import 'package:multicamera_tracking/features/surveillance/domain/entities/project.dart';
+
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/camera/camera_bloc.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/camera/camera_event.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/camera/camera_state.dart';
-import 'package:multicamera_tracking/features/surveillance/presentation/screens/camera_player_screen.dart';
+
+import 'package:multicamera_tracking/features/surveillance/presentation/bloc/group/group_bloc.dart';
+import 'package:multicamera_tracking/features/surveillance/presentation/bloc/group/group_state.dart';
+
+import 'package:multicamera_tracking/features/surveillance/presentation/bloc/project/project_bloc.dart';
+import 'package:multicamera_tracking/features/surveillance/presentation/bloc/project/project_state.dart';
+
+import 'package:multicamera_tracking/features/surveillance/presentation/screens/camera_viewer_screen.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/widgets/project_details/add_camera_sheet.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/widgets/project_details/camera_card.dart';
 
-class CameraList extends StatelessWidget {
-  final String groupId;
+class CameraList extends StatefulWidget {
   final String projectId;
+  final String groupId;
 
-  const CameraList({super.key, required this.groupId, required this.projectId});
+  const CameraList({super.key, required this.projectId, required this.groupId});
 
-  void _openCamera(BuildContext context, Camera camera) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => CameraPlayerScreen(camera: camera)),
+  @override
+  State<CameraList> createState() => _CameraListState();
+}
+
+class _CameraListState extends State<CameraList> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  @override
+  void didUpdateWidget(covariant CameraList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    final groupChanged =
+        oldWidget.projectId != widget.projectId ||
+        oldWidget.groupId != widget.groupId;
+
+    if (groupChanged) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    }
+  }
+
+  void _load() {
+    context.read<CameraBloc>().add(
+      LoadCamerasByGroup(projectId: widget.projectId, groupId: widget.groupId),
     );
   }
 
-  void _editCamera(BuildContext context, Camera camera) {
-    final camState = context.read<CameraBloc>().state;
+  Project? _resolveProject() {
+    final s = context.read<ProjectBloc>().state;
+    if (s is! ProjectsLoaded) return null;
+    try {
+      return s.projects.firstWhere((p) => p.id == widget.projectId);
+    } catch (_) {
+      return null;
+    }
+  }
 
-    // Retrieve the freshest camera state from the bloc
-    final latestCam = (camState is CameraLoaded)
-        ? camState
-              .getCameras(camera.projectId, camera.groupId)
-              .firstWhere((c) => c.id == camera.id, orElse: () => camera)
-        : camera;
+  Group? _resolveGroup() {
+    final s = context.read<GroupBloc>().state;
+    if (s is! GroupLoaded) return null;
+    final groups = s.getGroups(widget.projectId);
+    try {
+      return groups.firstWhere((g) => g.id == widget.groupId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _openViewer(Camera cam) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CameraViewerScreen(
+          projectId: widget.projectId,
+          initialGroupId: widget.groupId,
+          initialCameraId: cam.id,
+        ),
+      ),
+    );
+  }
+
+  void _editCamera(Camera cam) {
+    final project = _resolveProject();
+    final group = _resolveGroup();
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (_) => AddCameraSheet(existingCamera: latestCam),
+      builder: (_) => AddCameraSheet(
+        existingCamera: cam,
+        initialProject: project,
+        initialGroup: group,
+      ),
     );
   }
 
-  Future<void> _deleteCamera(BuildContext context, Camera camera) async {
+  Future<void> _deleteCamera(Camera cam) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text("Delete Camera"),
-        content: Text('Are you sure you want to delete "${camera.name}"?'),
+        content: Text('Are you sure you want to delete "${cam.name}"?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -58,19 +123,19 @@ class CameraList extends StatelessWidget {
     );
 
     if (confirm == true) {
-      context.read<CameraBloc>().add(DeleteCamera(camera));
+      context.read<CameraBloc>().add(DeleteCamera(cam));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<CameraBloc, CameraState>(
-      builder: (context, camState) {
-        if (camState is CameraLoading) {
+      builder: (context, state) {
+        if (state is CameraInitial || state is CameraLoading) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        if (camState is CameraError) {
+        if (state is CameraError) {
           return Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -78,21 +143,27 @@ class CameraList extends StatelessWidget {
                 const Icon(Icons.error, color: Colors.red),
                 const SizedBox(height: 8),
                 Text(
-                  'Error loading cameras:\n${camState.message}',
+                  'Error loading cameras:\n${state.message}',
                   textAlign: TextAlign.center,
                 ),
+                const SizedBox(height: 12),
+                OutlinedButton(onPressed: _load, child: const Text('Retry')),
               ],
             ),
           );
         }
 
-        if (camState is! CameraLoaded) {
+        if (state is! CameraLoaded) {
           return const Center(child: Text("No camera data available."));
         }
 
-        final cameras = camState.grouped[projectId]?[groupId] ?? [];
+        final isGroupLoading = state.isLoadingGroup(
+          widget.projectId,
+          widget.groupId,
+        );
+        final cameras = state.getCameras(widget.projectId, widget.groupId);
 
-        if (cameras.isEmpty) {
+        if (cameras.isEmpty && !isGroupLoading) {
           return const Center(
             child: Text(
               "No cameras in this group.\nTap the '+' button to add one!",
@@ -101,42 +172,30 @@ class CameraList extends StatelessWidget {
           );
         }
 
-        return ListView.builder(
-          itemCount: cameras.length,
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          itemBuilder: (_, i) {
-            final cam = cameras[i];
-            final isSaving = camState.isSaving(cam.id);
+        return Column(
+          children: [
+            if (isGroupLoading) const LinearProgressIndicator(minHeight: 3),
+            Expanded(
+              child: ListView.builder(
+                itemCount: cameras.length,
+                itemBuilder: (_, i) {
+                  final cam = cameras[i];
+                  final isSaving = state.isSaving(cam.id);
 
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              child: Opacity(
-                opacity: isSaving ? 0.5 : 1.0,
-                child: Stack(
-                  alignment: Alignment.centerRight,
-                  children: [
-                    CameraCard(
+                  return Opacity(
+                    opacity: isSaving ? 0.5 : 1.0,
+                    child: CameraCard(
+                      key: ValueKey(cam.id),
                       camera: cam,
-                      onTap: isSaving ? null : () => _openCamera(context, cam),
-                      onEdit: isSaving ? null : () => _editCamera(context, cam),
-                      onDelete: isSaving
-                          ? null
-                          : () => _deleteCamera(context, cam),
+                      onTap: isSaving ? null : () => _openViewer(cam),
+                      onEdit: isSaving ? null : () => _editCamera(cam),
+                      onDelete: isSaving ? null : () => _deleteCamera(cam),
                     ),
-                    if (isSaving)
-                      const Padding(
-                        padding: EdgeInsets.only(right: 16),
-                        child: SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      ),
-                  ],
-                ),
+                  );
+                },
               ),
-            );
-          },
+            ),
+          ],
         );
       },
     );
