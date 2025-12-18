@@ -1,7 +1,6 @@
 import 'package:equatable/equatable.dart';
 import '../../../domain/entities/camera.dart';
 
-/// Base class for all camera-related BLoC events.
 abstract class CameraEvent extends Equatable {
   const CameraEvent();
 
@@ -9,18 +8,16 @@ abstract class CameraEvent extends Equatable {
   List<Object?> get props => [];
 }
 
-/// Event to load all cameras for a specific [projectId] and [groupId].
 final class LoadCamerasByGroup extends CameraEvent {
   final String projectId;
   final String groupId;
 
-  const LoadCamerasByGroup(this.projectId, this.groupId);
+  const LoadCamerasByGroup({required this.projectId, required this.groupId});
 
   @override
   List<Object?> get props => [projectId, groupId];
 }
 
-/// Event to create a new camera or update an existing one.
 final class AddOrUpdateCamera extends CameraEvent {
   final Camera camera;
 
@@ -30,7 +27,6 @@ final class AddOrUpdateCamera extends CameraEvent {
   List<Object?> get props => [camera];
 }
 
-/// Event to delete a specific camera.
 final class DeleteCamera extends CameraEvent {
   final Camera camera;
 
@@ -40,7 +36,16 @@ final class DeleteCamera extends CameraEvent {
   List<Object?> get props => [camera];
 }
 
-/// Event to mark a camera as saving (e.g. while persisting).
+final class ClearCamerasByGroup extends CameraEvent {
+  final String projectId;
+  final String groupId;
+
+  const ClearCamerasByGroup({required this.projectId, required this.groupId});
+
+  @override
+  List<Object?> get props => [projectId, groupId];
+}
+
 final class MarkCameraSaving extends CameraEvent {
   final String cameraId;
 
@@ -50,7 +55,6 @@ final class MarkCameraSaving extends CameraEvent {
   List<Object?> get props => [cameraId];
 }
 
-/// Event to unmark a camera as saving (after completion).
 final class UnmarkCameraSaving extends CameraEvent {
   final String cameraId;
 

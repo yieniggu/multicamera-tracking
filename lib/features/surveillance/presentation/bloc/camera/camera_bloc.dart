@@ -25,10 +25,11 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
     required this.saveCamera,
     required this.deleteCamera,
     required this.bus,
-  }) : super(CameraInitial()) {
+  }) : super(const CameraInitial()) {
     on<LoadCamerasByGroup>(_onLoadCameras);
     on<AddOrUpdateCamera>(_onSaveCamera);
     on<DeleteCamera>(_onDeleteCamera);
+    on<ClearCamerasByGroup>(_onClearGroup);
     on<MarkCameraSaving>(_onMarkSaving);
     on<UnmarkCameraSaving>(_onUnmarkSaving);
 
@@ -48,24 +49,49 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
     LoadCamerasByGroup event,
     Emitter<CameraState> emit,
   ) async {
-    emit(const CameraLoading());
+    final key = CameraLoaded.groupKey(event.projectId, event.groupId);
+
+    // Keep existing data visible; only mark this group as loading.
+    final current = state;
+    if (current is CameraLoaded) {
+      emit(
+        current.copyWith(loadingGroupKeys: {...current.loadingGroupKeys, key}),
+      );
+    } else {
+      // If nothing loaded yet, we can show full-screen loading.
+      emit(const CameraLoading());
+    }
+
     try {
       final newCameras = await getCamerasByGroup(
         event.projectId,
         event.groupId,
       );
-      final currentGrouped = state is CameraLoaded
+
+      // Preserve existing loaded data if any.
+      final base = state is CameraLoaded
           ? cloneGroupedCameraMap((state as CameraLoaded).grouped)
           : <String, Map<String, List<Camera>>>{};
 
-      currentGrouped[event.projectId] ??= {};
-      currentGrouped[event.projectId]![event.groupId] = newCameras;
+      base[event.projectId] ??= {};
+      base[event.projectId]![event.groupId] = List<Camera>.from(newCameras);
 
       final savingIds = state is CameraLoaded
           ? (state as CameraLoaded).savingCameraIds
           : <String>{};
 
-      emit(CameraLoaded(grouped: currentGrouped, savingCameraIds: savingIds));
+      final loadingKeys = state is CameraLoaded
+          ? (Set<String>.from((state as CameraLoaded).loadingGroupKeys)
+              ..remove(key))
+          : <String>{};
+
+      emit(
+        CameraLoaded(
+          grouped: base,
+          savingCameraIds: savingIds,
+          loadingGroupKeys: loadingKeys,
+        ),
+      );
     } catch (e, stack) {
       debugPrint('[CameraBloc] load error: $e\n$stack');
       emit(CameraError(e.toString()));
@@ -80,12 +106,10 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
     add(MarkCameraSaving(cam.id));
     try {
       await saveCamera(cam);
-      // no reload; repo emits CameraUpserted
+      // Event bus will publish CameraUpserted; state updates there.
     } catch (e, stack) {
-      // Do NOT emit CameraError here; keep current list visible.
-      // The sheet/UI will show a snackbar from its own catch.
-      // ignore: avoid_print
-      print('[CameraBloc] save error: $e\n$stack');
+      debugPrint('[CameraBloc] save error: $e\n$stack');
+      // Keep UI stable; don’t nuke CameraLoaded.
     } finally {
       add(UnmarkCameraSaving(cam.id));
     }
@@ -99,19 +123,32 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
     add(MarkCameraSaving(cam.id));
     try {
       await deleteCamera(cam.projectId, cam.groupId, cam.id);
-      // no reload; repo emits CameraDeleted
+      // Event bus will publish CameraDeleted; state updates there.
     } catch (e, stack) {
-      // Do NOT emit CameraError; keep list visible.
-      // ignore: avoid_print
-      print('[CameraBloc] delete error: $e\n$stack');
+      debugPrint('[CameraBloc] delete error: $e\n$stack');
     } finally {
       add(UnmarkCameraSaving(cam.id));
     }
   }
 
+  Future<void> _onClearGroup(
+    ClearCamerasByGroup event,
+    Emitter<CameraState> emit,
+  ) async {
+    final current = state;
+    if (current is! CameraLoaded) return;
+
+    final grouped = cloneGroupedCameraMap(current.grouped);
+    grouped[event.projectId] ??= {};
+    grouped[event.projectId]![event.groupId] = <Camera>[];
+
+    emit(current.copyWith(grouped: grouped));
+  }
+
   void _onMarkSaving(MarkCameraSaving event, Emitter<CameraState> emit) {
     final current = state;
     if (current is! CameraLoaded) return;
+
     emit(
       current.copyWith(
         savingCameraIds: {...current.savingCameraIds, event.cameraId},
@@ -122,8 +159,10 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
   void _onUnmarkSaving(UnmarkCameraSaving event, Emitter<CameraState> emit) {
     final current = state;
     if (current is! CameraLoaded) return;
+
     final updated = Set<String>.from(current.savingCameraIds)
       ..remove(event.cameraId);
+
     emit(current.copyWith(savingCameraIds: updated));
   }
 
@@ -137,10 +176,14 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
     final saving = current is CameraLoaded
         ? current.savingCameraIds
         : <String>{};
+    final loading = current is CameraLoaded
+        ? current.loadingGroupKeys
+        : <String>{};
 
     if (e is CameraUpserted) {
       final p = e.camera.projectId;
       final g = e.camera.groupId;
+
       final list = List<Camera>.from(grouped[p]?[g] ?? const []);
       final idx = list.indexWhere((c) => c.id == e.camera.id);
       if (idx >= 0) {
@@ -148,32 +191,55 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
       } else {
         list.add(e.camera);
       }
+
       grouped[p] ??= {};
       grouped[p]![g] = list;
 
-      emit(CameraLoaded(grouped: grouped, savingCameraIds: saving));
+      emit(
+        CameraLoaded(
+          grouped: grouped,
+          savingCameraIds: saving,
+          loadingGroupKeys: loading,
+        ),
+      );
     } else if (e is CameraDeleted) {
-      final p = e.projectId, g = e.groupId;
+      final p = e.projectId;
+      final g = e.groupId;
+
       final list = List<Camera>.from(grouped[p]?[g] ?? const []);
       grouped[p] ??= {};
       grouped[p]![g] = list.where((c) => c.id != e.cameraId).toList();
 
-      emit(CameraLoaded(grouped: grouped, savingCameraIds: saving));
+      emit(
+        CameraLoaded(
+          grouped: grouped,
+          savingCameraIds: saving,
+          loadingGroupKeys: loading,
+        ),
+      );
     } else if (e is CamerasClearedForGroup) {
-      final p = e.projectId, g = e.groupId;
-      grouped[p] ??= {};
-      grouped[p]![g] = <Camera>[];
+      grouped[e.projectId] ??= {};
+      grouped[e.projectId]![e.groupId] = <Camera>[];
 
-      emit(CameraLoaded(grouped: grouped, savingCameraIds: saving));
+      emit(
+        CameraLoaded(
+          grouped: grouped,
+          savingCameraIds: saving,
+          loadingGroupKeys: loading,
+        ),
+      );
     }
   }
 }
 
-/// safe clone (preserves types)
+/// Deep clone (project -> group -> list) to avoid accidental shared list mutations.
 Map<String, Map<String, List<Camera>>> cloneGroupedCameraMap(
   Map<String, Map<String, List<Camera>>> original,
 ) {
   return original.map(
-    (pid, groupMap) => MapEntry(pid, Map<String, List<Camera>>.from(groupMap)),
+    (pid, groupMap) => MapEntry(
+      pid,
+      groupMap.map((gid, list) => MapEntry(gid, List<Camera>.from(list))),
+    ),
   );
 }
