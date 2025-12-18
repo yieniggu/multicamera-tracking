@@ -36,6 +36,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   bool _isLoadingData = true;
+
   // Track which (projectId|groupId) have had their cameras requested
   final Set<String> _requestedCameraForGroup = {};
   final Set<String> _requestedGroupsForProject = {};
@@ -123,7 +124,7 @@ class _HomeScreenState extends State<HomeScreen> {
               }
             }
 
-            // Clean up removed projects (keeps the set tidy if you delete projects)
+            // Clean up removed projects
             final currentIds = projects.map((p) => p.id).toSet();
             _requestedGroupsForProject.removeWhere(
               (pid) => !currentIds.contains(pid),
@@ -139,7 +140,7 @@ class _HomeScreenState extends State<HomeScreen> {
           listener: (context, state) {
             final grouped = (state as GroupLoaded).grouped;
 
-            // --- cache group counts so tiles never fall back to 0 while a reload runs ---
+            // cache group counts so tiles never fall back to 0 while a reload runs
             grouped.forEach((projectId, groups) {
               _groupCountCache[projectId] = groups.length;
             });
@@ -149,7 +150,9 @@ class _HomeScreenState extends State<HomeScreen> {
               for (final g in groups) {
                 final key = '$projectId|${g.id}';
                 if (_requestedCameraForGroup.add(key)) {
-                  camBloc.add(LoadCamerasByGroup(projectId, g.id));
+                  camBloc.add(
+                    LoadCamerasByGroup(projectId: projectId, groupId: g.id),
+                  );
                 }
               }
             });
@@ -188,21 +191,18 @@ class _HomeScreenState extends State<HomeScreen> {
                           itemBuilder: (context, index) {
                             final project = projects[index];
 
-                            // current group count
-                            final groupState = context.watch<GroupBloc>().state;
-                            final isSavingTile =
-                                (projectState is ProjectsLoaded)
-                                ? projectState.isSaving(project.id)
-                                : false;
+                            final isSavingTile = projectState.isSaving(
+                              project.id,
+                            );
 
                             final hasGroupData = (groupState is GroupLoaded)
-                                ? (groupState.grouped.containsKey(project.id))
+                                ? groupState.grouped.containsKey(project.id)
                                 : false;
 
                             // Disable while saving OR until this project's groups arrive
                             final disabled = isSavingTile || !hasGroupData;
 
-                            // Use cached count if available; avoid showing 0 on first load
+                            // Use cached count if available
                             final computedGroupCount =
                                 (groupState is GroupLoaded)
                                 ? (groupState.grouped[project.id]?.length ??
@@ -264,7 +264,6 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           },
         ),
-
         bottomNavigationBar: widget.isGuest
             ? Padding(
                 padding: const EdgeInsets.all(12.0),

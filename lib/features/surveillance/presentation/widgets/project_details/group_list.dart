@@ -57,10 +57,6 @@ class GroupList extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<GroupBloc, GroupState>(
       builder: (context, groupState) {
-        if (groupState is GroupLoading) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
         if (groupState is GroupError) {
           return Center(
             child: Column(
@@ -78,26 +74,27 @@ class GroupList extends StatelessWidget {
         }
 
         if (groupState is! GroupLoaded) {
-          return const Center(child: Text("No group data available."));
+          return const Center(child: CircularProgressIndicator());
         }
 
         final groups = groupState.getGroups(projectId);
+        final isLoadingThisProject = groupState.isLoadingProject(projectId);
+
         debugPrint(
           '[GROUP-LIST] groups for $projectId: ${groups.map((g) => g.name).join(', ')}',
         );
 
         if (groups.isEmpty) {
+          if (isLoadingThisProject) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
           return const Center(
             child: Text(
               "No groups in this project.\nTap the '+' button to add one!",
               textAlign: TextAlign.center,
             ),
           );
-        }
-
-        debugPrint('[GROUP-LIST] Rebuilding with groups:');
-        for (final g in groups) {
-          debugPrint('  → ${g.id} | ${g.name}');
         }
 
         return PageView.builder(
@@ -108,33 +105,23 @@ class GroupList extends StatelessWidget {
             final group = groups[i];
             final isSaving = groupState.isSaving(group.id);
 
-            debugPrint(
-              '[PAGEVIEW] Building index $i for group: ${group.id} | ${group.name}',
-            );
-
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               child: Opacity(
                 opacity: isSaving ? 0.5 : 1.0,
-                child: Stack(
+                child: Column(
                   children: [
-                    Column(
-                      children: [
-                        Expanded(
-                          child: GroupCard(
-                            key: ValueKey(group.id),
-                            group: group,
-                            onEdit: isSaving
-                                ? null
-                                : () => _editGroup(context, group),
-                            onDelete: isSaving
-                                ? null
-                                : () => _deleteGroup(context, group),
-                          ),
-                        ),
-                        // if (isSaving)
-                        //   const LinearProgressIndicator(minHeight: 4),
-                      ],
+                    Expanded(
+                      child: GroupCard(
+                        key: ValueKey(group.id),
+                        group: group,
+                        onEdit: isSaving
+                            ? null
+                            : () => _editGroup(context, group),
+                        onDelete: isSaving
+                            ? null
+                            : () => _deleteGroup(context, group),
+                      ),
                     ),
                   ],
                 ),
