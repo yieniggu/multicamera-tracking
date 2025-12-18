@@ -1,7 +1,6 @@
 import 'package:equatable/equatable.dart';
 import '../../../domain/entities/camera.dart';
 
-/// Abstract base class for all camera states in the BLoC.
 abstract class CameraState extends Equatable {
   const CameraState();
 
@@ -9,52 +8,60 @@ abstract class CameraState extends Equatable {
   List<Object?> get props => [];
 }
 
-/// Initial state before any cameras are loaded.
 class CameraInitial extends CameraState {
   const CameraInitial();
 }
 
-/// State representing an ongoing camera loading process.
+/// Full-screen loading only if nothing is loaded yet.
 class CameraLoading extends CameraState {
   const CameraLoading();
 }
 
-/// Loaded state containing all cameras and saving indicators.
 class CameraLoaded extends CameraState {
-  /// Nested structure: projectId → groupId → list of cameras.
+  /// Structure: projectId -> groupId -> list of cameras
   final Map<String, Map<String, List<Camera>>> grouped;
 
-  /// IDs of cameras currently being added or updated.
+  /// IDs of cameras currently being saved/deleted.
   final Set<String> savingCameraIds;
 
-  const CameraLoaded({required this.grouped, this.savingCameraIds = const {}});
+  /// Keys of groups currently loading: "$projectId|$groupId"
+  final Set<String> loadingGroupKeys;
 
-  /// Creates a new state with optional overrides.
+  const CameraLoaded({
+    required this.grouped,
+    this.savingCameraIds = const {},
+    this.loadingGroupKeys = const {},
+  });
+
   CameraLoaded copyWith({
     Map<String, Map<String, List<Camera>>>? grouped,
     Set<String>? savingCameraIds,
+    Set<String>? loadingGroupKeys,
   }) {
     return CameraLoaded(
       grouped: grouped ?? this.grouped,
       savingCameraIds: savingCameraIds ?? this.savingCameraIds,
+      loadingGroupKeys: loadingGroupKeys ?? this.loadingGroupKeys,
     );
   }
 
-  /// Returns the list of cameras for a given project and group.
+  static String groupKey(String projectId, String groupId) =>
+      '$projectId|$groupId';
+
   List<Camera> getCameras(String projectId, String groupId) {
-    return grouped[projectId]?[groupId] ?? [];
+    return grouped[projectId]?[groupId] ?? const <Camera>[];
   }
 
-  /// Returns whether a specific camera is in the saving state.
-  bool isSaving(String cameraId) {
-    return savingCameraIds.contains(cameraId);
+  bool isSaving(String cameraId) => savingCameraIds.contains(cameraId);
+
+  bool isLoadingGroup(String projectId, String groupId) {
+    return loadingGroupKeys.contains(groupKey(projectId, groupId));
   }
 
   @override
-  List<Object?> get props => [grouped, savingCameraIds];
+  List<Object?> get props => [grouped, savingCameraIds, loadingGroupKeys];
 }
 
-/// State representing an error while loading or modifying cameras.
 class CameraError extends CameraState {
   final String message;
 

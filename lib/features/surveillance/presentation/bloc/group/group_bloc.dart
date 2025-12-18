@@ -20,6 +20,9 @@ class GroupBloc extends Bloc<GroupEvent, GroupState> {
 
   late final StreamSubscription _busSub;
 
+  // Internal cache prevents dropping previously loaded projects
+  final Map<String, List<Group>> _groupedCache = {};
+
   GroupBloc({
     required this.getAllGroupsByProjectUseCase,
     required this.saveGroupUseCase,
@@ -44,31 +47,56 @@ class GroupBloc extends Bloc<GroupEvent, GroupState> {
     return super.close();
   }
 
+  GroupLoaded _asLoadedStateOrInit() {
+    final s = state;
+    if (s is GroupLoaded) return s;
+
+    return GroupLoaded(
+      grouped: _cloneGrouped(_groupedCache),
+      savingGroupIds: const {},
+      loadingProjectIds: const {},
+    );
+  }
+
   Future<void> _onLoadGroupsByProject(
     LoadGroupsByProject event,
     Emitter<GroupState> emit,
   ) async {
-    emit(const GroupLoading());
+    final curr = _asLoadedStateOrInit();
+
+    emit(
+      curr.copyWith(
+        loadingProjectIds: {...curr.loadingProjectIds, event.projectId},
+      ),
+    );
+
     try {
       final groups = await getAllGroupsByProjectUseCase(event.projectId);
 
-      final grouped = <String, List<Group>>{};
-      if (state is GroupLoaded) {
-        final current = (state as GroupLoaded).grouped;
-        for (final e in current.entries) {
-          grouped[e.key] = List<Group>.from(e.value);
-        }
-      }
-      grouped[event.projectId] = List<Group>.from(groups);
+      _groupedCache[event.projectId] = List<Group>.from(groups);
 
-      final savingIds = state is GroupLoaded
-          ? (state as GroupLoaded).savingGroupIds
-          : <String>{};
+      final nextLoading = Set<String>.from(curr.loadingProjectIds)
+        ..remove(event.projectId);
 
-      emit(GroupLoaded(grouped: grouped, savingGroupIds: savingIds));
-    } catch (e) {
       emit(
-        GroupError("Failed to load groups for project ${event.projectId}: $e"),
+        curr.copyWith(
+          grouped: _cloneGrouped(_groupedCache),
+          loadingProjectIds: nextLoading,
+        ),
+      );
+    } catch (e) {
+      final nextLoading = Set<String>.from(curr.loadingProjectIds)
+        ..remove(event.projectId);
+
+      // Keep whatever we had, just clear the loading bit for that project
+      emit(
+        curr.copyWith(
+          grouped: _cloneGrouped(_groupedCache),
+          loadingProjectIds: nextLoading,
+        ),
+      );
+      debugPrint(
+        '[GroupBloc] Failed to load groups for project ${event.projectId}: $e',
       );
     }
   }
@@ -81,22 +109,19 @@ class GroupBloc extends Bloc<GroupEvent, GroupState> {
     try {
       await saveGroupUseCase(event.group);
 
-      // Optimistically update UI without waiting for the bus
-      final curr = state;
-      if (curr is GroupLoaded) {
-        final grouped = Map<String, List<Group>>.from(curr.grouped);
-        final list = List<Group>.from(
-          grouped[event.group.projectId] ?? const [],
-        );
-        final idx = list.indexWhere((g) => g.id == event.group.id);
-        if (idx >= 0) {
-          list[idx] = event.group;
-        } else {
-          list.add(event.group);
-        }
-        grouped[event.group.projectId] = list;
-        emit(curr.copyWith(grouped: grouped));
+      final curr = _asLoadedStateOrInit();
+      final p = event.group.projectId;
+
+      final list = List<Group>.from(_groupedCache[p] ?? const []);
+      final idx = list.indexWhere((g) => g.id == event.group.id);
+      if (idx >= 0) {
+        list[idx] = event.group;
+      } else {
+        list.add(event.group);
       }
+      _groupedCache[p] = list;
+
+      emit(curr.copyWith(grouped: _cloneGrouped(_groupedCache)));
     } catch (e) {
       emit(GroupError("Failed to save group: $e"));
     } finally {
@@ -111,7 +136,13 @@ class GroupBloc extends Bloc<GroupEvent, GroupState> {
     add(MarkGroupSaving(event.group.id));
     try {
       await deleteGroupUseCase(event.group.projectId, event.group.id);
-      // repo will emit GroupDeleted; no reload
+
+      final p = event.group.projectId;
+      final list = List<Group>.from(_groupedCache[p] ?? const []);
+      _groupedCache[p] = list.where((g) => g.id != event.group.id).toList();
+
+      final curr = _asLoadedStateOrInit();
+      emit(curr.copyWith(grouped: _cloneGrouped(_groupedCache)));
     } catch (e) {
       emit(GroupError("Failed to delete group: $e"));
     } finally {
@@ -120,50 +151,48 @@ class GroupBloc extends Bloc<GroupEvent, GroupState> {
   }
 
   void _onMarkGroupSaving(MarkGroupSaving event, Emitter<GroupState> emit) {
-    final current = state;
-    if (current is! GroupLoaded) return;
+    final curr = _asLoadedStateOrInit();
     emit(
-      current.copyWith(
-        savingGroupIds: {...current.savingGroupIds, event.groupId},
-      ),
+      curr.copyWith(savingGroupIds: {...curr.savingGroupIds, event.groupId}),
     );
   }
 
   void _onUnmarkGroupSaving(UnmarkGroupSaving event, Emitter<GroupState> emit) {
-    final current = state;
-    if (current is! GroupLoaded) return;
-    final updated = Set<String>.from(current.savingGroupIds)
+    final curr = _asLoadedStateOrInit();
+    final updated = Set<String>.from(curr.savingGroupIds)
       ..remove(event.groupId);
-    emit(current.copyWith(savingGroupIds: updated));
+    emit(curr.copyWith(savingGroupIds: updated));
   }
 
   void _onBusEvent(SurveillanceEvent e) {
-    final current = state;
-
-    final grouped = current is GroupLoaded
-        ? Map<String, List<Group>>.from(current.grouped)
-        : <String, List<Group>>{};
-
-    final saving = current is GroupLoaded ? current.savingGroupIds : <String>{};
+    final curr = _asLoadedStateOrInit();
 
     if (e is GroupUpserted) {
       final p = e.group.projectId;
-      final list = List<Group>.from(grouped[p] ?? const []);
+      final list = List<Group>.from(_groupedCache[p] ?? const []);
       final idx = list.indexWhere((g) => g.id == e.group.id);
       if (idx >= 0) {
         list[idx] = e.group;
       } else {
         list.add(e.group);
       }
-      grouped[p] = list;
+      _groupedCache[p] = list;
 
-      emit(GroupLoaded(grouped: grouped, savingGroupIds: saving));
-    } else if (e is GroupDeleted) {
-      final p = e.projectId;
-      final list = List<Group>.from(grouped[p] ?? const []);
-      grouped[p] = list.where((g) => g.id != e.groupId).toList();
-
-      emit(GroupLoaded(grouped: grouped, savingGroupIds: saving));
+      emit(curr.copyWith(grouped: _cloneGrouped(_groupedCache)));
+      return;
     }
+
+    if (e is GroupDeleted) {
+      final p = e.projectId;
+      final list = List<Group>.from(_groupedCache[p] ?? const []);
+      _groupedCache[p] = list.where((g) => g.id != e.groupId).toList();
+
+      emit(curr.copyWith(grouped: _cloneGrouped(_groupedCache)));
+      return;
+    }
+  }
+
+  Map<String, List<Group>> _cloneGrouped(Map<String, List<Group>> original) {
+    return original.map((k, v) => MapEntry(k, List<Group>.from(v)));
   }
 }
