@@ -41,6 +41,8 @@ class _CameraViewerScreenState extends State<CameraViewerScreen> {
   Timer? _landscapeAutoHideTimer;
 
   String _currentCameraId = '';
+  int _currentIndex = 0;
+
   List<String> _lastSequenceIds = const [];
 
   @override
@@ -137,10 +139,13 @@ class _CameraViewerScreenState extends State<CameraViewerScreen> {
     final idx = sequence.indexWhere((c) => c.id == _currentCameraId);
     final target = idx >= 0 ? idx : 0;
 
-    // Keep overlay in sync even if we programmatically jump.
+    // Keep overlay + caching window in sync even if we programmatically jump.
     final targetId = sequence[target].id;
-    if (mounted && _currentCameraId != targetId) {
-      setState(() => _currentCameraId = targetId);
+    if (mounted && (_currentCameraId != targetId || _currentIndex != target)) {
+      setState(() {
+        _currentCameraId = targetId;
+        _currentIndex = target;
+      });
     }
 
     final currentPage = (_pageController.page ?? 0).round();
@@ -163,6 +168,11 @@ class _CameraViewerScreenState extends State<CameraViewerScreen> {
         setState(() => _infoCollapsed = true);
       });
     }
+  }
+
+  bool _shouldKeepAlivePage(int pageIndex) {
+    // Cache window: keep only current, prev, next alive.
+    return (pageIndex - _currentIndex).abs() <= 1;
   }
 
   @override
@@ -257,10 +267,15 @@ class _CameraViewerScreenState extends State<CameraViewerScreen> {
                       onPageChanged: (index) {
                         final cam = cameras[index];
 
-                        // IMPORTANT: rebuild overlay so it always reflects the swiped camera
-                        if (mounted) setState(() => _currentCameraId = cam.id);
+                        if (!mounted) return;
 
-                        // In landscape/fullscreen, show info briefly again after each swipe
+                        // Keep overlay + caching window in sync.
+                        setState(() {
+                          _currentCameraId = cam.id;
+                          _currentIndex = index;
+                        });
+
+                        // In landscape/fullscreen, show info briefly again after each swipe.
                         if (allowAutoHide) {
                           _setInfoCollapsed(
                             false,
@@ -274,10 +289,8 @@ class _CameraViewerScreenState extends State<CameraViewerScreen> {
                         return GestureDetector(
                           behavior: HitTestBehavior.opaque,
                           onTap: () {
-                            // FIX:
-                            // - If the info chip is open, tapping anywhere hides it in BOTH orientations.
-                            // - We never "show on tap" (showing happens via the chip's own "Show info"
-                            //   pill or dragging down).
+                            // If the info chip is open, tapping anywhere hides it in BOTH orientations.
+                            // We never "show on tap" (showing happens via the chip pill or dragging).
                             if (_infoCollapsed) return;
                             _setInfoCollapsed(
                               true,
@@ -290,6 +303,7 @@ class _CameraViewerScreenState extends State<CameraViewerScreen> {
                               child: _CameraPage(
                                 key: ValueKey('camera-page-${cam.id}'),
                                 camera: cam,
+                                keepAlive: _shouldKeepAlivePage(i),
                               ),
                             ),
                           ),
@@ -359,14 +373,16 @@ class _CameraViewerScreenState extends State<CameraViewerScreen> {
 
 class _CameraPage extends StatefulWidget {
   final Camera camera;
+  final bool keepAlive;
 
-  const _CameraPage({super.key, required this.camera});
+  const _CameraPage({super.key, required this.camera, required this.keepAlive});
 
   @override
   State<_CameraPage> createState() => _CameraPageState();
 }
 
-class _CameraPageState extends State<_CameraPage> {
+class _CameraPageState extends State<_CameraPage>
+    with AutomaticKeepAliveClientMixin {
   VlcPlayerController? _controller;
 
   bool _loading = true;
@@ -389,6 +405,20 @@ class _CameraPageState extends State<_CameraPage> {
     });
   }
 
+  @override
+  void didUpdateWidget(covariant _CameraPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.keepAlive != widget.keepAlive) {
+      updateKeepAlive();
+    }
+
+    if (oldWidget.camera.id != widget.camera.id ||
+        oldWidget.camera.rtspUrl != widget.camera.rtspUrl) {
+      _recreateController();
+    }
+  }
+
   void _createController() {
     _controller = VlcPlayerController.network(
       widget.camera.rtspUrl,
@@ -401,6 +431,24 @@ class _CameraPageState extends State<_CameraPage> {
 
     _loading = true;
     _error = null;
+  }
+
+  void _recreateController() {
+    final old = _controller;
+    _controller = null;
+
+    if (old != null) {
+      old.removeListener(_onVlcChanged);
+      _safeDisposeVlcController(old);
+    }
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    _createController();
+    setState(() {});
   }
 
   void _onVlcChanged() {
@@ -436,21 +484,7 @@ class _CameraPageState extends State<_CameraPage> {
   }
 
   void _retry() {
-    final old = _controller;
-    _controller = null;
-
-    if (old != null) {
-      old.removeListener(_onVlcChanged);
-      _safeDisposeVlcController(old);
-    }
-
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-
-    _createController();
-    setState(() {});
+    _recreateController();
   }
 
   @override
@@ -482,6 +516,8 @@ class _CameraPageState extends State<_CameraPage> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
+
     final c = _controller;
     if (c == null) {
       return const Center(child: CircularProgressIndicator());
@@ -545,6 +581,9 @@ class _CameraPageState extends State<_CameraPage> {
       ],
     );
   }
+
+  @override
+  bool get wantKeepAlive => widget.keepAlive;
 }
 
 class _BackButtonPill extends StatelessWidget {
