@@ -45,8 +45,60 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(widget.project.name)),
-      body: BlocBuilder<GroupBloc, GroupState>(
+      body: BlocConsumer<GroupBloc, GroupState>(
+        listenWhen: (prev, curr) => curr is GroupLoaded,
+        listener: (context, state) {
+          if (!mounted || state is! GroupLoaded) return;
+
+          final freshGroups = state.getGroups(widget.project.id);
+          final isGroupAdded = freshGroups.length > _lastGroupCount;
+          final isGroupDeleted = freshGroups.length < _lastGroupCount;
+          _lastGroupCount = freshGroups.length;
+
+          if (!_pageController.hasClients || freshGroups.isEmpty) return;
+
+          if (isGroupAdded) {
+            final newIndex = freshGroups.length - 1;
+            _pageController.animateToPage(
+              newIndex,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+            );
+            if (currentGroupIndex != newIndex) {
+              setState(() => currentGroupIndex = newIndex);
+            }
+            return;
+          }
+
+          if (isGroupDeleted) {
+            _pageController.animateToPage(
+              0,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+            );
+            if (currentGroupIndex != 0) {
+              setState(() => currentGroupIndex = 0);
+            }
+            return;
+          }
+
+          final safeIndex = currentGroupIndex.clamp(
+            0,
+            freshGroups.length - 1,
+          );
+          if (_pageController.page?.round() != safeIndex) {
+            _pageController.animateToPage(
+              safeIndex,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+            );
+          }
+        },
         builder: (context, groupState) {
+          if (groupState is GroupError) {
+            return Center(child: Text(groupState.message));
+          }
+
           final freshGroups = (groupState is GroupLoaded)
               ? groupState.getGroups(widget.project.id)
               : <Group>[];
@@ -57,47 +109,6 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
               child: Text("No groups found in this project."),
             );
           }
-
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            final isGroupAdded = freshGroups.length > _lastGroupCount;
-            final isGroupDeleted = freshGroups.length < _lastGroupCount;
-            _lastGroupCount = freshGroups.length;
-
-            if (_pageController.hasClients) {
-              if (isGroupAdded) {
-                final newIndex = freshGroups.length - 1;
-                _pageController.animateToPage(
-                  newIndex,
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                );
-                if (currentGroupIndex != newIndex) {
-                  setState(() => currentGroupIndex = newIndex);
-                }
-              } else if (isGroupDeleted) {
-                _pageController.animateToPage(
-                  0,
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                );
-                if (currentGroupIndex != 0) {
-                  setState(() => currentGroupIndex = 0);
-                }
-              } else {
-                final safeIndex = currentGroupIndex.clamp(
-                  0,
-                  freshGroups.length - 1,
-                );
-                if (_pageController.page?.round() != safeIndex) {
-                  _pageController.animateToPage(
-                    safeIndex,
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
-                  );
-                }
-              }
-            }
-          });
 
           final selectedGroup =
               freshGroups[currentGroupIndex.clamp(0, freshGroups.length - 1)];
