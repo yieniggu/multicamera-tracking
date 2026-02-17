@@ -30,6 +30,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -39,23 +41,25 @@ dependencies:
   get_it: ^8.0.3
   hive: ^2.2.3
   hive_flutter: ^1.1.0
-  connectivity_plus: ^6.1.4
-  path_provider: ^2.1.5
   uuid: ^4.5.1
-  build_runner: ^2.5.4
-  hive_generator: ^2.0.1
   firebase_core: ^3.15.1
   firebase_auth: ^5.6.2
   cloud_firestore: ^5.6.11
+  firebase_messaging: ^15.2.4
   shared_preferences: ^2.5.3
   flutter_speed_dial: ^7.0.0
   collection: ^1.19.1
   bloc: ^9.0.0
   flutter_bloc: ^9.1.1
+  flutter_secure_storage: ^9.2.2
+  intl: ^0.20.2
+  mailer: ^6.1.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  build_runner: ^2.5.4
+  hive_generator: ^2.0.1
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
