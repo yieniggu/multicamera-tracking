@@ -63,3 +63,7 @@ final class UnmarkCameraSaving extends CameraEvent {
   @override
   List<Object?> get props => [cameraId];
 }
+
+final class ResetCameras extends CameraEvent {
+  const ResetCameras();
+}
