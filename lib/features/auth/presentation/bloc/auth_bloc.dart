@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:multicamera_tracking/config/di.dart';
 import 'package:multicamera_tracking/features/auth/domain/repositories/auth_repository.dart';
-import 'package:multicamera_tracking/shared/utils/app_mode.dart';
+import 'package:multicamera_tracking/shared/domain/services/app_mode.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/get_current_user.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/register_with_email.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/sign_out.dart';
@@ -25,6 +25,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final GetCurrentUserUseCase getCurrentUserUseCase;
   final InitUserDataUseCase initUserDataUseCase;
   final MigrateGuestDataUseCase migrateGuestDataUseCase;
+  final AppMode appMode;
   late final StreamSubscription _authSub;
 
   AuthBloc({
@@ -35,6 +36,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     required this.getCurrentUserUseCase,
     required this.initUserDataUseCase,
     required this.migrateGuestDataUseCase,
+    required this.appMode,
   }) : super(AuthInitial()) {
     on<AuthCheckRequested>(_onCheckRequested);
     on<AuthSignedInWithEmail>(_onSignedInWithEmail);
@@ -67,9 +69,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
       await initUserDataUseCase();
 
-      // Instead of relying only on prefs, check if user is anonymous
       final isGuest = user.isAnonymous;
-      remoteEnabled.value = !isGuest;
+      if (isGuest) {
+        appMode.enterGuest();
+      } else {
+        appMode.enterRemote();
+      }
 
       // Update prefs to stay in sync
       final prefs = await SharedPreferences.getInstance();
@@ -78,6 +83,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       emit(AuthAuthenticated(user, isGuest: isGuest));
     } else {
       debugPrint("[AUTH-BLOC]onCheckRequested: no user found");
+      appMode.enterGuest();
       emit(AuthUnauthenticated());
     }
     debugPrint("[AUTH-BLOC]onCheckRequested: ending auth check");
@@ -96,7 +102,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           "[AUTH-BLOC]onCheckRequested: found user: ${user.toString()}",
         );
 
-        remoteEnabled.value = true;
+        appMode.enterRemote();
 
         await initUserDataUseCase();
         emit(AuthAuthenticated(user, isGuest: false));
@@ -128,7 +134,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           "[AUTH-BLOC]onRegisterWithEmail: registered new user: ${user.toString()}",
         );
 
-        remoteEnabled.value = true;
+        appMode.enterRemote();
 
         // Optionally migrate guest data
         if (event.shouldMigrateGuestData) {
@@ -171,7 +177,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           "[AUTH-BLOC]onSignedInAnonymousle: starting initUserDataUseCase",
         );
 
-        remoteEnabled.value = false;
+        appMode.enterGuest();
 
         await initUserDataUseCase();
         emit(AuthAuthenticated(user, isGuest: true));
@@ -198,7 +204,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       await signOutUseCase();
 
       // ensure we switch back to local mode after logout
-      remoteEnabled.value = false;
+      appMode.enterGuest();
 
       debugPrint("[AUTH-BLOC]onSignedOut: user signed out");
       emit(AuthUnauthenticated());

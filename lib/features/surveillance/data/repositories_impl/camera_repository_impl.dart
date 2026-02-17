@@ -1,7 +1,8 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:multicamera_tracking/features/surveillance/data/datasources/local/camera_local_datasource.dart';
 import 'package:multicamera_tracking/features/surveillance/data/datasources/remote/camera_remote_datasource.dart';
 import 'package:multicamera_tracking/shared/domain/services/event_bus.dart';
+import 'package:multicamera_tracking/shared/domain/services/app_mode.dart';
 import 'package:multicamera_tracking/shared/domain/events/surveillance_event.dart';
 import '../../domain/entities/camera.dart';
 import '../../domain/repositories/camera_repository.dart';
@@ -9,17 +10,17 @@ import '../../domain/repositories/camera_repository.dart';
 class CameraRepositoryImpl implements CameraRepository {
   final CameraLocalDatasource local;
   final CameraRemoteDatasource remote;
-  final ValueListenable<bool> useRemote;
+  final AppMode appMode;
   final SurveillanceEventBus bus;
 
   CameraRepositoryImpl({
     required this.local,
     required this.remote,
-    required this.useRemote,
+    required this.appMode,
     required this.bus,
   });
 
-  bool get isRemote => useRemote.value;
+  bool get isRemote => appMode.isRemote;
 
   @override
   Future<List<Camera>> getAll(String userId) {

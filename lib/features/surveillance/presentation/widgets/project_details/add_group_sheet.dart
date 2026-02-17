@@ -3,15 +3,15 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/group/group_state.dart';
-import 'package:multicamera_tracking/shared/utils/app_mode.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:multicamera_tracking/config/di.dart';
 import 'package:multicamera_tracking/features/auth/domain/entities/access_role.dart';
-import 'package:multicamera_tracking/features/auth/domain/repositories/auth_repository.dart';
+import 'package:multicamera_tracking/features/auth/domain/use_cases/get_current_user.dart';
 import 'package:multicamera_tracking/features/surveillance/domain/entities/group.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/group/group_bloc.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/group/group_event.dart';
+import 'package:multicamera_tracking/shared/domain/services/app_mode.dart';
 
 class AddGroupSheet extends StatefulWidget {
   final String projectId;
@@ -50,7 +50,7 @@ class _AddGroupSheetState extends State<AddGroupSheet> {
       final isEditing = widget.existingGroup != null;
       final id = isEditing ? widget.existingGroup!.id : const Uuid().v4();
 
-      final user = getIt<AuthRepository>().currentUser;
+      final user = getIt<GetCurrentUserUseCase>()();
       if (user == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -121,7 +121,7 @@ class _AddGroupSheetState extends State<AddGroupSheet> {
       }
       return <Group>[];
     });
-    final trial = isTrialLocalMode();
+    final trial = getIt<AppMode>().isTrial;
     final blocked = trial && !isEditing && groups.isNotEmpty;
 
     return Padding(

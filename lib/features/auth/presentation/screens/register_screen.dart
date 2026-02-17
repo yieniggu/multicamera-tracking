@@ -4,9 +4,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:multicamera_tracking/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:multicamera_tracking/features/auth/presentation/bloc/auth_event.dart';
 import 'package:multicamera_tracking/features/auth/presentation/bloc/auth_state.dart';
-import 'package:multicamera_tracking/features/surveillance/data/datasources/local/project_local_datasource.dart';
 
 import 'package:multicamera_tracking/config/di.dart';
+import 'package:multicamera_tracking/shared/domain/use_cases/has_guest_data_to_migrate.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -35,12 +35,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Future<void> _checkGuestData() async {
     debugPrint("[REGISTER-SCREEN] Checking guest data");
 
-    // Bypass repo, use Hive directly to avoid user check
-    final localProjectDataSource = getIt<ProjectLocalDatasource>();
-    final projects = await localProjectDataSource.getAll("guest");
-
-    final exists = projects.isNotEmpty;
-    setState(() => hasGuestData = exists);
+    final hasData = await getIt<HasGuestDataToMigrateUseCase>()();
+    if (!mounted) return;
+    setState(() => hasGuestData = hasData);
   }
 
   void _submitRegistration() {

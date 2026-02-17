@@ -2,7 +2,7 @@ import 'package:multicamera_tracking/features/surveillance/domain/repositories/p
 import 'package:multicamera_tracking/features/surveillance/domain/repositories/group_repository.dart';
 import 'package:multicamera_tracking/features/surveillance/domain/repositories/camera_repository.dart';
 import 'package:multicamera_tracking/shared/domain/services/quota_guard.dart';
-import 'package:multicamera_tracking/shared/utils/app_mode.dart';
+import 'package:multicamera_tracking/shared/domain/services/app_mode.dart';
 import 'package:multicamera_tracking/shared/errors/quota_exceeded_exception.dart';
 import 'package:multicamera_tracking/shared/constants/quota.dart';
 
@@ -10,14 +10,16 @@ class QuotaGuardImpl implements QuotaGuard {
   final ProjectRepository projects;
   final GroupRepository groups;
   final CameraRepository cameras;
+  final AppMode appMode;
 
   QuotaGuardImpl({
     required this.projects,
     required this.groups,
     required this.cameras,
+    required this.appMode,
   });
 
-  bool get _trial => isTrialLocalMode();
+  bool get _trial => appMode.isTrial;
 
   @override
   Future<void> ensureCanCreateProject() async {
