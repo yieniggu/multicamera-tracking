@@ -34,6 +34,7 @@ class GroupBloc extends Bloc<GroupEvent, GroupState> {
     on<DeleteGroup>(_onDeleteGroup);
     on<MarkGroupSaving>(_onMarkGroupSaving);
     on<UnmarkGroupSaving>(_onUnmarkGroupSaving);
+    on<ResetGroups>(_onResetGroups);
 
     _busSub = bus.stream.listen((e) {
       debugPrint('[BUS→GroupBloc] bus=${bus.id} event=${e.runtimeType}');
@@ -190,6 +191,11 @@ class GroupBloc extends Bloc<GroupEvent, GroupState> {
       emit(curr.copyWith(grouped: _cloneGrouped(_groupedCache)));
       return;
     }
+  }
+
+  void _onResetGroups(ResetGroups event, Emitter<GroupState> emit) {
+    _groupedCache.clear();
+    emit(const GroupInitial());
   }
 
   Map<String, List<Group>> _cloneGrouped(Map<String, List<Group>> original) {

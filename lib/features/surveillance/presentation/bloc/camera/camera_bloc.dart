@@ -32,6 +32,7 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
     on<ClearCamerasByGroup>(_onClearGroup);
     on<MarkCameraSaving>(_onMarkSaving);
     on<UnmarkCameraSaving>(_onUnmarkSaving);
+    on<ResetCameras>(_onResetCameras);
 
     _busSub = bus.stream.listen((e) {
       debugPrint('[BUS→CameraBloc] bus=${bus.id} event=${e.runtimeType}');
@@ -229,6 +230,10 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
         ),
       );
     }
+  }
+
+  void _onResetCameras(ResetCameras event, Emitter<CameraState> emit) {
+    emit(const CameraInitial());
   }
 }
 

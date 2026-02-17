@@ -43,3 +43,5 @@ class UnmarkProjectSaving extends ProjectEvent {
   @override
   List<Object?> get props => [projectId];
 }
+
+class ResetProjects extends ProjectEvent {}

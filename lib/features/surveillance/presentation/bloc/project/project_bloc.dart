@@ -29,6 +29,7 @@ class ProjectBloc extends Bloc<ProjectEvent, ProjectState> {
     on<DeleteProject>(_onDelete);
     on<MarkProjectSaving>(_onMarkSaving);
     on<UnmarkProjectSaving>(_onUnmarkSaving);
+    on<ResetProjects>(_onReset);
 
     _busSub = bus.stream.listen(_onBusEvent);
   }
@@ -98,6 +99,10 @@ class ProjectBloc extends Bloc<ProjectEvent, ProjectState> {
     final updated = Set<String>.from(curr.savingProjectIds)
       ..remove(event.projectId);
     emit(curr.copyWith(savingProjectIds: updated));
+  }
+
+  void _onReset(ResetProjects event, Emitter<ProjectState> emit) {
+    emit(ProjectsInitial());
   }
 
   void _onBusEvent(SurveillanceEvent e) {

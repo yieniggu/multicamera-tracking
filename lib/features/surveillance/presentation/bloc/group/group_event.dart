@@ -53,3 +53,5 @@ class UnmarkGroupSaving extends GroupEvent {
   @override
   List<Object?> get props => [groupId, projectId];
 }
+
+final class ResetGroups extends GroupEvent {}
