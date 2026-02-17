@@ -23,7 +23,8 @@ import 'package:multicamera_tracking/features/surveillance/presentation/widgets/
 import 'package:multicamera_tracking/features/surveillance/presentation/widgets/home/project_tile.dart';
 import 'package:multicamera_tracking/shared/constants/quota.dart';
 
-import 'package:multicamera_tracking/shared/utils/app_mode.dart';
+import 'package:multicamera_tracking/shared/domain/services/app_mode.dart';
+import 'package:multicamera_tracking/config/di.dart';
 
 class HomeScreen extends StatefulWidget {
   final bool isGuest;
@@ -103,7 +104,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isTrial = isTrialLocalMode();
+    final isTrial = getIt<AppMode>().isTrial;
     final projectsCount = context.select<ProjectBloc, int>((bloc) {
       final s = bloc.state;
       return s is ProjectsLoaded ? s.projects.length : 0;
@@ -238,7 +239,7 @@ class _HomeScreenState extends State<HomeScreen> {
         floatingActionButton: Builder(
           builder: (ctx) {
             void _onFabPressed() {
-              final isTrial = isTrialLocalMode();
+              final isTrial = getIt<AppMode>().isTrial;
               final s = ctx.read<ProjectBloc>().state;
               final count = s is ProjectsLoaded ? s.projects.length : 0;
 

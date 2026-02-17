@@ -7,11 +7,11 @@ import 'package:uuid/uuid.dart';
 
 import 'package:multicamera_tracking/config/di.dart';
 import 'package:multicamera_tracking/features/auth/domain/entities/access_role.dart';
-import 'package:multicamera_tracking/features/auth/domain/repositories/auth_repository.dart';
+import 'package:multicamera_tracking/features/auth/domain/use_cases/get_current_user.dart';
 import 'package:multicamera_tracking/features/surveillance/domain/entities/project.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/project/project_bloc.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/project/project_event.dart';
-import 'package:multicamera_tracking/shared/utils/app_mode.dart';
+import 'package:multicamera_tracking/shared/domain/services/app_mode.dart';
 
 class AddProjectSheet extends StatefulWidget {
   final Project? existingProject;
@@ -44,7 +44,15 @@ class _AddProjectSheetState extends State<AddProjectSheet> {
     final now = DateTime.now();
     final isEditing = widget.existingProject != null;
     final id = isEditing ? widget.existingProject!.id : const Uuid().v4();
-    final user = getIt<AuthRepository>().currentUser!;
+    final user = getIt<GetCurrentUserUseCase>()();
+    if (user == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("User not found. Try signing in again.")),
+        );
+      }
+      return;
+    }
 
     final project = Project(
       id: id,
@@ -76,7 +84,7 @@ class _AddProjectSheetState extends State<AddProjectSheet> {
       final s = bloc.state;
       return s is ProjectsLoaded ? s.projects : <Project>[];
     });
-    final trial = isTrialLocalMode();
+    final trial = getIt<AppMode>().isTrial;
     final blocked = trial && !isEditing && projects.isNotEmpty;
 
     return Padding(

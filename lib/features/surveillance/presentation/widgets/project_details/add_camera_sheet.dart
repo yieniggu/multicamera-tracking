@@ -7,11 +7,10 @@ import 'package:multicamera_tracking/features/surveillance/presentation/bloc/cam
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/group/group_event.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/group/group_state.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/project/project_state.dart';
-import 'package:multicamera_tracking/shared/utils/app_mode.dart';
 import 'package:uuid/uuid.dart';
 import 'package:multicamera_tracking/config/di.dart';
 import 'package:multicamera_tracking/features/auth/domain/entities/access_role.dart';
-import 'package:multicamera_tracking/features/auth/domain/repositories/auth_repository.dart';
+import 'package:multicamera_tracking/features/auth/domain/use_cases/get_current_user.dart';
 import 'package:multicamera_tracking/features/surveillance/domain/entities/camera.dart';
 import 'package:multicamera_tracking/features/surveillance/domain/entities/group.dart';
 import 'package:multicamera_tracking/features/surveillance/domain/entities/project.dart';
@@ -19,6 +18,7 @@ import 'package:multicamera_tracking/features/surveillance/presentation/bloc/pro
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/group/group_bloc.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/camera/camera_bloc.dart';
 import 'package:collection/collection.dart';
+import 'package:multicamera_tracking/shared/domain/services/app_mode.dart';
 
 class AddCameraSheet extends StatefulWidget {
   final Camera? existingCamera;
@@ -108,7 +108,17 @@ class _AddCameraSheetState extends State<AddCameraSheet> {
       final isEditing = widget.existingCamera != null;
       final id = isEditing ? widget.existingCamera!.id : const Uuid().v4();
 
-      final user = getIt<AuthRepository>().currentUser!;
+      final user = getIt<GetCurrentUserUseCase>()();
+      if (user == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("User not found. Try signing in again."),
+            ),
+          );
+        }
+        return;
+      }
       final camera = Camera(
         id: id,
         name: _nameController.text.trim(),
@@ -211,7 +221,7 @@ class _AddCameraSheetState extends State<AddCameraSheet> {
         ? camState.getCameras(_selectedProject!.id, _selectedGroup!.id).length
         : 0;
 
-    final trial = isTrialLocalMode();
+    final trial = getIt<AppMode>().isTrial;
     final blocked = trial && !isEditing && currentCamCount >= 4;
 
     return Padding(

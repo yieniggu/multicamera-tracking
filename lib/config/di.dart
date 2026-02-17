@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:get_it/get_it.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:multicamera_tracking/firebase_options.dart';
 
 // Surveillance models
 import 'package:multicamera_tracking/features/surveillance/data/models/camera_model.dart';
@@ -32,6 +33,9 @@ import 'package:multicamera_tracking/features/surveillance/domain/repositories/c
 import 'package:multicamera_tracking/features/surveillance/domain/repositories/group_repository.dart';
 import 'package:multicamera_tracking/features/surveillance/domain/repositories/project_repository.dart';
 import 'package:multicamera_tracking/shared/domain/services/event_bus.dart';
+import 'package:multicamera_tracking/shared/domain/services/app_mode.dart';
+import 'package:multicamera_tracking/shared/services_impl/app_mode_service_impl.dart';
+import 'package:multicamera_tracking/shared/domain/services/guest_data_service.dart';
 
 // Services
 import 'package:multicamera_tracking/shared/domain/services/init_user_data_service.dart';
@@ -65,17 +69,16 @@ import 'package:multicamera_tracking/features/auth/presentation/bloc/auth_bloc.d
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/project/project_bloc.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/group/group_bloc.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/camera/camera_bloc.dart';
-
-import 'package:multicamera_tracking/shared/utils/app_mode.dart';
+import 'package:multicamera_tracking/shared/domain/use_cases/has_guest_data_to_migrate.dart';
 
 final GetIt getIt = GetIt.instance;
-
-/// Shared flag to switch between local and remote data sources
 
 Future<void> initDependencies() async {
   debugPrint("[DI] Initializing Dependencies...");
   try {
-    await Firebase.initializeApp();
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
     await Hive.initFlutter();
 
     // Register Hive adapters
@@ -93,6 +96,9 @@ Future<void> initDependencies() async {
     getIt.registerLazySingleton<FirebaseFirestore>(
       () => FirebaseFirestore.instance,
     );
+
+    // App Mode (guest vs remote)
+    getIt.registerLazySingleton<AppMode>(() => AppModeServiceImpl());
 
     // Local datasources
     getIt.registerLazySingleton<CameraLocalDatasource>(
@@ -126,7 +132,7 @@ Future<void> initDependencies() async {
       () => CameraRepositoryImpl(
         local: getIt(),
         remote: getIt(),
-        useRemote: remoteEnabled,
+        appMode: getIt(),
         bus: getIt<SurveillanceEventBus>(),
       ),
     );
@@ -135,7 +141,7 @@ Future<void> initDependencies() async {
       () => GroupRepositoryImpl(
         local: getIt(),
         remote: getIt(),
-        useRemote: remoteEnabled,
+        appMode: getIt(),
         bus: getIt<SurveillanceEventBus>(),
       ),
     );
@@ -145,7 +151,7 @@ Future<void> initDependencies() async {
         local: getIt(),
         remote: getIt(),
         authRepository: getIt(),
-        useRemote: remoteEnabled,
+        appMode: getIt(),
         bus: getIt<SurveillanceEventBus>(),
       ),
     );
@@ -156,7 +162,7 @@ Future<void> initDependencies() async {
 
     // Services
     getIt.registerLazySingleton<GuestDataService>(
-      () => GuestDataService(
+      () => GuestDataServiceImpl(
         projectLocalDatasource: getIt(),
         groupLocalDatasource: getIt(),
         authRepository: getIt(),
@@ -184,8 +190,12 @@ Future<void> initDependencies() async {
     );
 
     getIt.registerLazySingleton<QuotaGuard>(
-      () =>
-          QuotaGuardImpl(projects: getIt(), groups: getIt(), cameras: getIt()),
+      () => QuotaGuardImpl(
+        projects: getIt(),
+        groups: getIt(),
+        cameras: getIt(),
+        appMode: getIt(),
+      ),
     );
 
     // Auth Use Cases
@@ -208,6 +218,9 @@ Future<void> initDependencies() async {
     getIt.registerLazySingleton<MigrateGuestDataUseCase>(
       () => MigrateGuestDataUseCase(getIt()),
     );
+    getIt.registerLazySingleton<HasGuestDataToMigrateUseCase>(
+      () => HasGuestDataToMigrateUseCase(getIt()),
+    );
 
     // Auth Bloc
     getIt.registerFactory(
@@ -219,6 +232,7 @@ Future<void> initDependencies() async {
         signOutUseCase: getIt(),
         initUserDataUseCase: getIt(),
         migrateGuestDataUseCase: getIt(),
+        appMode: getIt(),
       ),
     );
 

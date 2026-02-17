@@ -6,11 +6,12 @@ import 'package:multicamera_tracking/features/surveillance/presentation/widgets/
 import 'package:multicamera_tracking/features/surveillance/presentation/widgets/project_details/add_group_sheet.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:multicamera_tracking/shared/constants/quota.dart';
-import 'package:multicamera_tracking/shared/utils/app_mode.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/group/group_bloc.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/group/group_state.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/camera/camera_bloc.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/camera/camera_state.dart';
+import 'package:multicamera_tracking/shared/domain/services/app_mode.dart';
+import 'package:multicamera_tracking/config/di.dart';
 
 class SpeedDialActions extends StatelessWidget {
   final Project project;
@@ -43,7 +44,7 @@ class SpeedDialActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final trial = isTrialLocalMode();
+    final trial = getIt<AppMode>().isTrial;
 
     // group count in this project
     final groupState = context.watch<GroupBloc>().state;
