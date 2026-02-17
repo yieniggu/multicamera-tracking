@@ -21,6 +21,27 @@ class CameraRemoteDatasource implements CameraDataSource {
 
   @override
   Future<List<Camera>> getAll(String userId) async {
+    try {
+      final snapshot = await firestore
+          .collectionGroup('cameras')
+          .where('userRoles.$userId', isGreaterThanOrEqualTo: '')
+          .get();
+
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        data['groupId'] ??= doc.reference.parent.parent?.id;
+        data['projectId'] ??=
+            doc.reference.parent.parent?.parent?.parent?.id;
+        return Camera.fromJson(data);
+      }).toList();
+    } catch (e) {
+      // Fallback to hierarchical traversal if collectionGroup query fails.
+      return _getAllByTraversal(userId);
+    }
+  }
+
+  Future<List<Camera>> _getAllByTraversal(String userId) async {
     final projects = await firestore
         .collection('projects')
         .where('userRoles.$userId', isGreaterThanOrEqualTo: '')
