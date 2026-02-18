@@ -41,6 +41,7 @@ import 'package:multicamera_tracking/shared/domain/services/guest_data_service.d
 import 'package:multicamera_tracking/shared/domain/services/init_user_data_service.dart';
 import 'package:multicamera_tracking/shared/domain/services/guest_data_migration_service.dart';
 import 'package:multicamera_tracking/features/surveillance/domain/use_cases/camera/delete_camera_by_group.dart';
+import 'package:multicamera_tracking/features/surveillance/domain/use_cases/camera/get_all_cameras.dart';
 import 'package:multicamera_tracking/features/surveillance/domain/use_cases/camera/get_cameras_by_group.dart';
 import 'package:multicamera_tracking/features/surveillance/domain/use_cases/camera/save_camera.dart';
 import 'package:multicamera_tracking/features/surveillance/domain/use_cases/group/delete_group.dart';
@@ -70,6 +71,9 @@ import 'package:multicamera_tracking/features/surveillance/presentation/bloc/pro
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/group/group_bloc.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/camera/camera_bloc.dart';
 import 'package:multicamera_tracking/shared/domain/use_cases/has_guest_data_to_migrate.dart';
+import 'package:multicamera_tracking/features/discovery/data/services/hybrid_network_discovery_service.dart';
+import 'package:multicamera_tracking/features/discovery/domain/services/network_discovery_service.dart';
+import 'package:multicamera_tracking/features/discovery/presentation/bloc/discovery_bloc.dart';
 
 final GetIt getIt = GetIt.instance;
 
@@ -99,6 +103,11 @@ Future<void> initDependencies() async {
 
     // App Mode (guest vs remote)
     getIt.registerLazySingleton<AppMode>(() => AppModeServiceImpl());
+
+    // Discovery service
+    getIt.registerLazySingleton<NetworkDiscoveryService>(
+      () => HybridNetworkDiscoveryService(),
+    );
 
     // Local datasources
     getIt.registerLazySingleton<CameraLocalDatasource>(
@@ -282,6 +291,9 @@ Future<void> initDependencies() async {
     getIt.registerLazySingleton<GetCamerasByGroupUseCase>(
       () => GetCamerasByGroupUseCase(getIt()),
     );
+    getIt.registerLazySingleton<GetAllCamerasUseCase>(
+      () => GetAllCamerasUseCase(getIt()),
+    );
     getIt.registerLazySingleton<SaveCameraUseCase>(
       () => SaveCameraUseCase(getIt(), getIt()),
     );
@@ -296,6 +308,15 @@ Future<void> initDependencies() async {
         saveCamera: getIt(),
         deleteCamera: getIt(),
         bus: getIt(),
+      ),
+    );
+
+    // Discovery bloc
+    getIt.registerFactory(
+      () => DiscoveryBloc(
+        discoveryService: getIt(),
+        getCurrentUserUseCase: getIt(),
+        getAllCamerasUseCase: getIt(),
       ),
     );
 

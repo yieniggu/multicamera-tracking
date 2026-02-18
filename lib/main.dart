@@ -8,6 +8,7 @@ import 'package:multicamera_tracking/features/auth/presentation/bloc/auth_bloc.d
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/project/project_bloc.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/group/group_bloc.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/camera/camera_bloc.dart';
+import 'package:multicamera_tracking/features/discovery/presentation/bloc/discovery_bloc.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -32,6 +33,7 @@ class MyApp extends StatelessWidget {
         BlocProvider(create: (_) => getIt<ProjectBloc>()),
         BlocProvider(create: (_) => getIt<GroupBloc>()),
         BlocProvider(create: (_) => getIt<CameraBloc>()),
+        BlocProvider(create: (_) => getIt<DiscoveryBloc>()),
       ],
       child: MaterialApp(
         title: 'Multi Camera Viewer',
