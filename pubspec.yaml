@@ -54,6 +54,7 @@ dependencies:
   flutter_secure_storage: ^9.2.2
   intl: ^0.20.2
   mailer: ^6.1.0
+  multicast_dns: ^0.3.3
 
 dev_dependencies:
   flutter_test:

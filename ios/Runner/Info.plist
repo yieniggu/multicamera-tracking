@@ -41,6 +41,15 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>This app discovers cameras and devices on your local network.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_rtsp._tcp</string>
+		<string>_onvif._tcp</string>
+		<string>_http._tcp</string>
+		<string>_https._tcp</string>
+	</array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
