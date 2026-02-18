@@ -8,7 +8,7 @@ import 'package:multicamera_tracking/features/surveillance/presentation/bloc/gro
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/group/group_event.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/camera/camera_bloc.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/camera/camera_event.dart';
-import 'package:multicamera_tracking/shared/presentation/screen/home_screen.dart';
+import 'package:multicamera_tracking/shared/presentation/screen/initial_home_shell_screen.dart';
 import 'package:multicamera_tracking/features/auth/presentation/screens/login_screen.dart';
 
 class AuthGate extends StatefulWidget {
@@ -64,10 +64,12 @@ class _AuthGateState extends State<AuthGate> {
             debugPrint(
               "[AUTH-GATE] User authenticated, loading home screen. (isguest=${state.isGuest})",
             );
-            return HomeScreen(isGuest: state.isGuest);
+            return InitialHomeShellScreen(isGuest: state.isGuest);
           }
 
-          debugPrint("[AUTH-GATE] User unaauthenticated, loading Login screen.");
+          debugPrint(
+            "[AUTH-GATE] User unaauthenticated, loading Login screen.",
+          );
           return const LoginScreen();
         },
       ),

@@ -28,8 +28,13 @@ import 'package:multicamera_tracking/config/di.dart';
 
 class HomeScreen extends StatefulWidget {
   final bool isGuest;
+  final bool showGuestLoginCta;
 
-  const HomeScreen({super.key, required this.isGuest});
+  const HomeScreen({
+    super.key,
+    required this.isGuest,
+    this.showGuestLoginCta = true,
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -164,6 +169,12 @@ class _HomeScreenState extends State<HomeScreen> {
         appBar: AppBar(
           title: const Text("Camera Viewer"),
           actions: [
+            if (widget.isGuest && !widget.showGuestLoginCta)
+              IconButton(
+                icon: const Icon(Icons.login),
+                tooltip: 'Login',
+                onPressed: _navigateToLogin,
+              ),
             IconButton(
               icon: const Icon(Icons.logout),
               tooltip: 'Logout',
@@ -265,7 +276,7 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           },
         ),
-        bottomNavigationBar: widget.isGuest
+        bottomNavigationBar: widget.isGuest && widget.showGuestLoginCta
             ? Padding(
                 padding: const EdgeInsets.all(12.0),
                 child: ElevatedButton.icon(
