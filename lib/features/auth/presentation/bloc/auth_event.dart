@@ -1,4 +1,6 @@
 import 'package:equatable/equatable.dart';
+import 'package:multicamera_tracking/features/auth/domain/entities/auth_provider_type.dart';
+import 'package:multicamera_tracking/shared/domain/entities/guest_migration.dart';
 
 abstract class AuthEvent extends Equatable {
   const AuthEvent();
@@ -28,8 +30,59 @@ class AuthRegisteredWithEmail extends AuthEvent {
     required this.password,
     this.shouldMigrateGuestData = false,
   });
+
+  @override
+  List<Object?> get props => [email, password, shouldMigrateGuestData];
 }
 
 class AuthSignedInAnonymously extends AuthEvent {}
+
+class AuthSignedInWithGoogle extends AuthEvent {
+  final bool shouldMigrateGuestData;
+
+  const AuthSignedInWithGoogle({this.shouldMigrateGuestData = false});
+
+  @override
+  List<Object?> get props => [shouldMigrateGuestData];
+}
+
+class AuthSignedInWithMicrosoft extends AuthEvent {
+  final bool shouldMigrateGuestData;
+
+  const AuthSignedInWithMicrosoft({this.shouldMigrateGuestData = false});
+
+  @override
+  List<Object?> get props => [shouldMigrateGuestData];
+}
+
+class AuthPendingLinkResolvedWithProvider extends AuthEvent {
+  final AuthProviderType provider;
+  final bool shouldMigrateGuestData;
+
+  const AuthPendingLinkResolvedWithProvider(
+    this.provider, {
+    this.shouldMigrateGuestData = false,
+  });
+
+  @override
+  List<Object?> get props => [provider, shouldMigrateGuestData];
+}
+
+class AuthPendingLinkCleared extends AuthEvent {}
+
+class AuthForcedGuestMigrationRequested extends AuthEvent {
+  final String sourceUserId;
+  final GuestMigrationPlan plan;
+
+  const AuthForcedGuestMigrationRequested({
+    required this.sourceUserId,
+    this.plan = const GuestMigrationPlan(),
+  });
+
+  @override
+  List<Object?> get props => [sourceUserId, plan];
+}
+
+class AuthMigrationPromptDismissed extends AuthEvent {}
 
 class AuthSignedOut extends AuthEvent {}

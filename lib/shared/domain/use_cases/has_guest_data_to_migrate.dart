@@ -5,5 +5,6 @@ class HasGuestDataToMigrateUseCase {
 
   HasGuestDataToMigrateUseCase(this.service);
 
-  Future<bool> call() => service.hasDataToMigrate();
+  Future<bool> call({String? sourceUserId}) =>
+      service.hasDataToMigrate(sourceUserId: sourceUserId);
 }

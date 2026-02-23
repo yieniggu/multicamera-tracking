@@ -1,14 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter/foundation.dart';
+import 'package:multicamera_tracking/l10n/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:multicamera_tracking/features/auth/domain/entities/auth_provider_type.dart';
 import 'package:multicamera_tracking/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:multicamera_tracking/features/auth/presentation/bloc/auth_event.dart';
 import 'package:multicamera_tracking/features/auth/presentation/bloc/auth_state.dart';
 import 'package:multicamera_tracking/features/auth/presentation/screens/register_screen.dart';
+import 'package:multicamera_tracking/features/auth/presentation/widgets/auth_localization.dart';
+import 'package:multicamera_tracking/features/auth/presentation/widgets/social_auth_buttons.dart';
+import 'package:multicamera_tracking/config/di.dart';
+import 'package:multicamera_tracking/shared/domain/use_cases/reset_local_debug_data.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final bool enableGuestMigration;
+
+  const LoginScreen({super.key, this.enableGuestMigration = false});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -35,6 +44,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _checkIfAlreadyGuest() async {
     final prefs = await SharedPreferences.getInstance();
     final isGuest = prefs.getBool('is_guest') ?? false;
+    if (!mounted) return;
     setState(() => hideGuestButton = isGuest);
   }
 
@@ -48,61 +58,210 @@ class _LoginScreenState extends State<LoginScreen> {
     context.read<AuthBloc>().add(AuthSignedInAnonymously());
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return BlocListener<AuthBloc, AuthState>(
-      listener: (context, state) async {
-        if (state is AuthAuthenticated) {
-          // AuthGate (underneath) will now rebuild to HomeScreen.
-          // We just close the Login route if it's on top.
-          if (Navigator.canPop(context)) {
-            Navigator.pop(context);
-          }
-        } else if (state is AuthFailure) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(state.message)));
-        }
+  void _loginWithGoogle() {
+    context.read<AuthBloc>().add(const AuthSignedInWithGoogle());
+  }
+
+  void _loginWithMicrosoft() {
+    context.read<AuthBloc>().add(const AuthSignedInWithMicrosoft());
+  }
+
+  Future<void> _resetLocalDataDebug() async {
+    final l10n = AppLocalizations.of(context)!;
+    final messenger = ScaffoldMessenger.of(context);
+    final successMessage = l10n.authDebugResetLocalDataSuccess;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(l10n.authDebugResetLocalDataTitle),
+          content: Text(l10n.authDebugResetLocalDataDescription),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(l10n.authDismiss),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(l10n.authDebugResetLocalDataConfirm),
+            ),
+          ],
+        );
       },
-      child: Scaffold(
-        appBar: AppBar(title: const Text("Login")),
-        body: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              TextField(
-                controller: emailCtrl,
-                decoration: const InputDecoration(labelText: "Email"),
-              ),
-              TextField(
-                controller: passCtrl,
-                decoration: const InputDecoration(labelText: "Password"),
-                obscureText: true,
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: _loginWithEmail,
-                child: const Text("Login"),
-              ),
-              TextButton(
+    );
+
+    if (confirm != true || !mounted) return;
+
+    await getIt<ResetLocalDebugDataUseCase>()();
+    if (!mounted) return;
+    await _checkIfAlreadyGuest();
+    messenger.showSnackBar(SnackBar(content: Text(successMessage)));
+  }
+
+  Future<void> _showLinkRequiredDialog(AuthLinkRequired state) async {
+    final l10n = AppLocalizations.of(context)!;
+    final providers = state.pendingLink.existingProviders.isEmpty
+        ? [AuthProviderType.password]
+        : state.pendingLink.existingProviders;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(l10n.authLinkRequiredTitle),
+          content: Text(
+            l10n.authLinkRequiredDescription(
+              state.pendingLink.email.isEmpty
+                  ? emailCtrl.text.trim()
+                  : state.pendingLink.email,
+              authProviderLabel(context, state.pendingLink.pendingProvider),
+            ),
+          ),
+          actions: [
+            ...providers.map((provider) {
+              if (provider == AuthProviderType.password) {
+                return TextButton(
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop();
+                    context.read<AuthBloc>().add(
+                      const AuthPendingLinkResolvedWithProvider(
+                        AuthProviderType.password,
+                      ),
+                    );
+                  },
+                  child: Text(l10n.authUsePasswordToContinue),
+                );
+              }
+              return TextButton(
                 onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                  Navigator.of(dialogContext).pop();
+                  context.read<AuthBloc>().add(
+                    AuthPendingLinkResolvedWithProvider(provider),
                   );
                 },
-                child: const Text("Don't have an account? Register"),
-              ),
-              if (!hideGuestButton)
-                TextButton.icon(
-                  icon: const Icon(Icons.person_outline),
-                  label: const Text("Enter as Guest"),
-                  onPressed: _loginAsGuest,
+                child: Text(
+                  l10n.authContinueWithProvider(
+                    authProviderLabel(context, provider),
+                  ),
                 ),
-            ],
+              );
+            }),
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                context.read<AuthBloc>().add(AuthPendingLinkCleared());
+              },
+              child: Text(l10n.authDismiss),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return BlocConsumer<AuthBloc, AuthState>(
+      listener: (blocContext, state) async {
+        if (state is AuthAuthenticated) {
+          if (!mounted) return;
+          final navigator = Navigator.of(this.context);
+          if (state.requiresMigrationConfirmation) {
+            navigator.popUntil((route) => route.isFirst);
+            return;
+          }
+          // AuthGate (underneath) will now rebuild to HomeScreen.
+          // We just close the Login route if it's on top.
+          if (navigator.canPop()) {
+            navigator.pop();
+          }
+        } else if (state is AuthLinkRequired) {
+          await _showLinkRequiredDialog(state);
+        } else if (state is AuthFailure) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(this.context).showSnackBar(
+            SnackBar(
+              content: Text(authErrorMessage(this.context, state.message)),
+            ),
+          );
+        }
+      },
+      builder: (context, state) {
+        final isLoading = state is AuthLoading;
+        return Scaffold(
+          appBar: AppBar(title: Text(l10n.authLoginTitle)),
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                TextField(
+                  key: const Key('login_email_field'),
+                  controller: emailCtrl,
+                  enabled: !isLoading,
+                  decoration: InputDecoration(labelText: l10n.authEmailLabel),
+                ),
+                TextField(
+                  key: const Key('login_password_field'),
+                  controller: passCtrl,
+                  enabled: !isLoading,
+                  decoration: InputDecoration(
+                    labelText: l10n.authPasswordLabel,
+                  ),
+                  obscureText: true,
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  key: const Key('email_sign_in_button'),
+                  onPressed: isLoading ? null : _loginWithEmail,
+                  child: isLoading
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(l10n.authLoginButton),
+                ),
+                const SizedBox(height: 12),
+                SocialAuthButtons(
+                  isLoading: isLoading,
+                  onGooglePressed: _loginWithGoogle,
+                  onMicrosoftPressed: _loginWithMicrosoft,
+                ),
+                TextButton(
+                  key: const Key('open_register_button'),
+                  onPressed: isLoading
+                      ? null
+                      : () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => RegisterScreen(
+                                enableGuestMigration:
+                                    widget.enableGuestMigration,
+                              ),
+                            ),
+                          );
+                        },
+                  child: Text(l10n.authNoAccountRegister),
+                ),
+                if (!hideGuestButton)
+                  TextButton.icon(
+                    key: const Key('guest_sign_in_button'),
+                    icon: const Icon(Icons.person_outline),
+                    label: Text(l10n.authEnterAsGuest),
+                    onPressed: isLoading ? null : _loginAsGuest,
+                  ),
+                if (kDebugMode && state is! AuthAuthenticated)
+                  TextButton(
+                    key: const Key('debug_reset_local_data_button'),
+                    onPressed: isLoading ? null : _resetLocalDataDebug,
+                    child: Text(l10n.authDebugResetLocalDataAction),
+                  ),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
