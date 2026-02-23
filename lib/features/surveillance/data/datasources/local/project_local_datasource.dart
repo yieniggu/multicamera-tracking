@@ -12,7 +12,14 @@ class ProjectLocalDatasource implements ProjectDataSource {
 
   @override
   Future<List<Project>> getAll(String userId) async {
-    debugPrint("[PROJ-LOCAL-DS] Getting all projects...");
+    debugPrint("[PROJ-LOCAL-DS] Getting all projects for user: $userId");
+    return box.values
+        .where((m) => m.userRoles.containsKey(userId))
+        .map((m) => m.toEntity())
+        .toList();
+  }
+
+  Future<List<Project>> getAllForMigration() async {
     return box.values.map((m) => m.toEntity()).toList();
   }
 

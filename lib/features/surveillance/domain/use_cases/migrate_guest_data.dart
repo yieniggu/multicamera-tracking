@@ -1,3 +1,4 @@
+import 'package:multicamera_tracking/shared/domain/entities/guest_migration.dart';
 import 'package:multicamera_tracking/shared/domain/services/guest_data_migration_service.dart';
 
 class MigrateGuestDataUseCase {
@@ -5,7 +6,15 @@ class MigrateGuestDataUseCase {
 
   MigrateGuestDataUseCase(this.migrationService);
 
-  Future<void> call() async {
-    await migrationService.migrate();
+  Future<void> call({
+    required String sourceUserId,
+    required String targetUserId,
+    GuestMigrationPlan? plan,
+  }) async {
+    await migrationService.migrate(
+      sourceUserId: sourceUserId,
+      targetUserId: targetUserId,
+      plan: plan,
+    );
   }
 }
