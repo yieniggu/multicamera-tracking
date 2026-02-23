@@ -46,7 +46,35 @@ git clone https://github.com/your-username/multi-camera-viewer.git
 cd multi-camera-viewer
 flutter pub get
 flutter run
-````
+```
+
+## 🔐 Firebase Secrets (Local Only)
+
+Never commit Firebase config files. They are intentionally ignored in `.gitignore`:
+
+- `android/app/google-services.json`
+- `ios/Runner/GoogleService-Info.plist`
+- `macos/Runner/GoogleService-Info.plist`
+
+Store the real files outside the repo (example path):
+
+```bash
+~/.config/multicamera_tracking/firebase/dev/android/app/google-services.json
+~/.config/multicamera_tracking/firebase/dev/ios/Runner/GoogleService-Info.plist
+~/.config/multicamera_tracking/firebase/dev/macos/Runner/GoogleService-Info.plist
+```
+
+Then copy them into your local checkout:
+
+```bash
+./scripts/setup_local_firebase.sh
+```
+
+Before committing/pushing, run:
+
+```bash
+./scripts/check_secrets.sh
+```
 
 ### To run on a real Android device:
 
