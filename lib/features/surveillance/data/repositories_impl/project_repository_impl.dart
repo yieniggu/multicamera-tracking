@@ -5,6 +5,7 @@ import 'package:multicamera_tracking/features/surveillance/data/datasources/remo
 import 'package:multicamera_tracking/shared/domain/services/event_bus.dart';
 import 'package:multicamera_tracking/shared/domain/services/app_mode.dart';
 import 'package:multicamera_tracking/shared/domain/events/surveillance_event.dart';
+import 'package:multicamera_tracking/shared/utils/normalized_text.dart';
 import '../../domain/entities/project.dart';
 import '../../domain/repositories/project_repository.dart';
 
@@ -34,14 +35,23 @@ class ProjectRepositoryImpl implements ProjectRepository {
 
   @override
   Future<void> save(Project project) async {
+    final user = authRepository.currentUser;
+    if (user == null) throw Exception("[PROJ-REPO] No authenticated user.");
+
+    final normalizedIncomingName = normalizeComparableText(project.name);
+    final allProjects = await getAll();
+    final hasDuplicateName = allProjects.any(
+      (existingProject) =>
+          existingProject.id != project.id &&
+          existingProject.userRoles.containsKey(user.id) &&
+          normalizeComparableText(existingProject.name) ==
+              normalizedIncomingName,
+    );
+    if (hasDuplicateName) {
+      throw Exception("Project name already exists for this user.");
+    }
+
     if (!isRemote) {
-      final user = authRepository.currentUser;
-      if (user == null) throw Exception("[PROJ-REPO] No authenticated user.");
-      final existing = await local.getAll(user.id);
-      final isEditing = existing.any((p) => p.id == project.id);
-      if (!isEditing && existing.isNotEmpty) {
-        throw Exception("Trial limit reached: only 1 project in guest mode.");
-      }
       await local.save(project);
     } else {
       await remote.save(project);

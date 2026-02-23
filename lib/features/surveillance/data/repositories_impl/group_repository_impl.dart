@@ -4,6 +4,7 @@ import 'package:multicamera_tracking/features/surveillance/data/datasources/remo
 import 'package:multicamera_tracking/shared/domain/services/event_bus.dart';
 import 'package:multicamera_tracking/shared/domain/services/app_mode.dart';
 import 'package:multicamera_tracking/shared/domain/events/surveillance_event.dart';
+import 'package:multicamera_tracking/shared/utils/normalized_text.dart';
 
 import '../../domain/entities/group.dart';
 import '../../domain/repositories/group_repository.dart';
@@ -32,14 +33,18 @@ class GroupRepositoryImpl implements GroupRepository {
 
   @override
   Future<void> save(Group group) async {
+    final normalizedIncomingName = normalizeComparableText(group.name);
+    final groups = await getAllByProject(group.projectId);
+    final hasDuplicateName = groups.any(
+      (existingGroup) =>
+          existingGroup.id != group.id &&
+          normalizeComparableText(existingGroup.name) == normalizedIncomingName,
+    );
+    if (hasDuplicateName) {
+      throw Exception("Group name already exists for this project.");
+    }
+
     if (!isRemote) {
-      final existing = await local.getAllByProject(group.projectId);
-      final isEditing = existing.any((g) => g.id == group.id);
-      if (!isEditing && existing.isNotEmpty) {
-        throw Exception(
-          "Trial limit reached: only 1 group per project in guest mode.",
-        );
-      }
       await local.save(group);
     } else {
       await remote.save(group);

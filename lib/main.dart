@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:multicamera_tracking/config/dependency_config.dart';
+import 'package:multicamera_tracking/l10n/app_localizations.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:multicamera_tracking/config/di.dart';
 import 'package:multicamera_tracking/features/auth/presentation/bloc/auth_event.dart';
@@ -13,7 +15,7 @@ import 'package:multicamera_tracking/features/discovery/presentation/bloc/discov
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   debugPrint("[MAIN] Triggering init dependencies...");
-  await initDependencies();
+  await initDependencies(config: DependencyConfig.fromEnvironment());
 
   final authBloc = getIt<AuthBloc>()..add(AuthCheckRequested());
 
@@ -36,13 +38,14 @@ class MyApp extends StatelessWidget {
         BlocProvider(create: (_) => getIt<DiscoveryBloc>()),
       ],
       child: MaterialApp(
-        title: 'Multi Camera Viewer',
+        onGenerateTitle: (context) => AppLocalizations.of(context)!.appTitle,
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
           useMaterial3: true,
         ),
-        supportedLocales: const [Locale('en'), Locale('es')],
+        supportedLocales: AppLocalizations.supportedLocales,
         localizationsDelegates: const [
+          AppLocalizations.delegate,
           GlobalMaterialLocalizations.delegate,
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,

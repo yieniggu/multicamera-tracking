@@ -4,6 +4,7 @@ import 'package:multicamera_tracking/features/surveillance/data/datasources/remo
 import 'package:multicamera_tracking/shared/domain/services/event_bus.dart';
 import 'package:multicamera_tracking/shared/domain/services/app_mode.dart';
 import 'package:multicamera_tracking/shared/domain/events/surveillance_event.dart';
+import 'package:multicamera_tracking/shared/utils/normalized_text.dart';
 import '../../domain/entities/camera.dart';
 import '../../domain/repositories/camera_repository.dart';
 
@@ -36,17 +37,19 @@ class CameraRepositoryImpl implements CameraRepository {
 
   @override
   Future<void> save(Camera camera) async {
+    final normalizedIncomingName = normalizeComparableText(camera.name);
+    final cameras = await getAllByGroup(camera.projectId, camera.groupId);
+    final hasDuplicateName = cameras.any(
+      (existingCamera) =>
+          existingCamera.id != camera.id &&
+          normalizeComparableText(existingCamera.name) ==
+              normalizedIncomingName,
+    );
+    if (hasDuplicateName) {
+      throw Exception("Camera name already exists for this group.");
+    }
+
     if (!isRemote) {
-      final current = await local.getAllByGroup(
-        camera.projectId,
-        camera.groupId,
-      );
-      final isEditing = current.any((c) => c.id == camera.id);
-      if (!isEditing && current.length >= 4) {
-        throw Exception(
-          "Trial limit reached: max 4 cameras per group in guest mode.",
-        );
-      }
       await local.save(camera);
     } else {
       await remote.save(camera);

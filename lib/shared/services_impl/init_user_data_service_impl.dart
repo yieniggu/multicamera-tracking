@@ -10,9 +10,12 @@ import 'package:uuid/uuid.dart';
 import 'package:collection/collection.dart';
 
 class InitUserDataServiceImpl implements InitUserDataService {
+  @override
   final ProjectRepository projectRepository;
+  @override
   final GroupRepository groupRepository;
   final AuthRepository authRepository;
+  Future<void>? _inFlightEnsure;
 
   InitUserDataServiceImpl({
     required this.projectRepository,
@@ -22,6 +25,21 @@ class InitUserDataServiceImpl implements InitUserDataService {
 
   @override
   Future<void> ensureDefaultProjectAndGroup() async {
+    final current = _inFlightEnsure;
+    if (current != null) {
+      return current;
+    }
+
+    final future = _ensureDefaultProjectAndGroupImpl();
+    _inFlightEnsure = future;
+    try {
+      await future;
+    } finally {
+      _inFlightEnsure = null;
+    }
+  }
+
+  Future<void> _ensureDefaultProjectAndGroupImpl() async {
     debugPrint("[ENSURE-DEFAULT] Initializing defaults");
 
     final userId = authRepository.currentUser!.id;

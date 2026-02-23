@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:multicamera_tracking/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:multicamera_tracking/features/auth/presentation/bloc/auth_event.dart';
 import 'package:multicamera_tracking/features/auth/presentation/screens/login_screen.dart';
+import 'package:multicamera_tracking/features/auth/presentation/screens/register_screen.dart';
 
 import 'package:multicamera_tracking/features/surveillance/domain/entities/project.dart';
 
@@ -56,9 +57,24 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _navigateToLogin() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
+    if (widget.isGuest && !widget.showGuestLoginCta) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => const RegisterScreen(
+            enableGuestMigration: true,
+            showAlreadyHaveAccountAction: false,
+          ),
+        ),
+      );
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => LoginScreen(enableGuestMigration: widget.isGuest),
+      ),
     );
   }
 
@@ -101,6 +117,8 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
+
+    if (!mounted) return;
 
     if (confirm == true) {
       context.read<ProjectBloc>().add(DeleteProject(project.id));
@@ -169,87 +187,143 @@ class _HomeScreenState extends State<HomeScreen> {
         appBar: AppBar(
           title: const Text("Camera Viewer"),
           actions: [
-            if (widget.isGuest && !widget.showGuestLoginCta)
-              IconButton(
-                icon: const Icon(Icons.login),
-                tooltip: 'Login',
-                onPressed: _navigateToLogin,
-              ),
             IconButton(
+              key: const Key('home_logout_button'),
               icon: const Icon(Icons.logout),
-              tooltip: 'Logout',
+              tooltip: 'Sign out',
               onPressed: _logout,
             ),
           ],
         ),
-        body: _isLoadingData
-            ? const Center(child: CircularProgressIndicator())
-            : BlocBuilder<ProjectBloc, ProjectState>(
-                builder: (context, projectState) {
-                  if (projectState is ProjectsLoading) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
+        body: Column(
+          children: [
+            Expanded(
+              child: _isLoadingData
+                  ? const Center(child: CircularProgressIndicator())
+                  : BlocBuilder<ProjectBloc, ProjectState>(
+                      builder: (context, projectState) {
+                        if (projectState is ProjectsLoading) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
 
-                  if (projectState is ProjectsLoaded) {
-                    final projects = projectState.projects;
-                    if (projects.isEmpty) {
-                      return const Center(child: Text("No projects found."));
-                    }
-
-                    return BlocBuilder<GroupBloc, GroupState>(
-                      builder: (context, groupState) {
-                        return ListView.builder(
-                          itemCount: projects.length,
-                          itemBuilder: (context, index) {
-                            final project = projects[index];
-
-                            final isSavingTile = projectState.isSaving(
-                              project.id,
+                        if (projectState is ProjectsLoaded) {
+                          final projects = projectState.projects;
+                          if (projects.isEmpty) {
+                            return const Center(
+                              child: Text("No projects found."),
                             );
+                          }
 
-                            final hasGroupData = (groupState is GroupLoaded)
-                                ? groupState.grouped.containsKey(project.id)
-                                : false;
+                          return BlocBuilder<GroupBloc, GroupState>(
+                            builder: (context, groupState) {
+                              return ListView.builder(
+                                itemCount: projects.length,
+                                itemBuilder: (context, index) {
+                                  final project = projects[index];
 
-                            // Disable while saving OR until this project's groups arrive
-                            final disabled = isSavingTile || !hasGroupData;
+                                  final isSavingTile = projectState.isSaving(
+                                    project.id,
+                                  );
 
-                            // Use cached count if available
-                            final computedGroupCount =
-                                (groupState is GroupLoaded)
-                                ? (groupState.grouped[project.id]?.length ??
-                                      _groupCountCache[project.id])
-                                : _groupCountCache[project.id];
+                                  final hasGroupData =
+                                      (groupState is GroupLoaded)
+                                      ? groupState.grouped.containsKey(
+                                          project.id,
+                                        )
+                                      : false;
 
-                            return ProjectTile(
-                              project: project,
-                              onTap: () => _goToProjectDetail(project),
-                              onEdit: () =>
-                                  _showProjectSheet(existingProject: project),
-                              onDelete: project.isDefault
-                                  ? null
-                                  : () => _deleteProject(project),
-                              groupCount: disabled && computedGroupCount == null
-                                  ? null
-                                  : computedGroupCount,
-                              disabled: disabled,
-                            );
-                          },
-                        );
+                                  // Disable while saving OR until this project's groups arrive
+                                  final disabled =
+                                      isSavingTile || !hasGroupData;
+
+                                  // Use cached count if available
+                                  final computedGroupCount =
+                                      (groupState is GroupLoaded)
+                                      ? (groupState
+                                                .grouped[project.id]
+                                                ?.length ??
+                                            _groupCountCache[project.id])
+                                      : _groupCountCache[project.id];
+
+                                  return ProjectTile(
+                                    project: project,
+                                    onTap: () => _goToProjectDetail(project),
+                                    onEdit: () => _showProjectSheet(
+                                      existingProject: project,
+                                    ),
+                                    onDelete: project.isDefault
+                                        ? null
+                                        : () => _deleteProject(project),
+                                    groupCount:
+                                        disabled && computedGroupCount == null
+                                        ? null
+                                        : computedGroupCount,
+                                    disabled: disabled,
+                                  );
+                                },
+                              );
+                            },
+                          );
+                        }
+
+                        if (projectState is ProjectsError) {
+                          return Center(child: Text(projectState.message));
+                        }
+
+                        return const SizedBox.shrink();
                       },
-                    );
-                  }
-
-                  if (projectState is ProjectsError) {
-                    return Center(child: Text(projectState.message));
-                  }
-
-                  return const SizedBox.shrink();
-                },
+                    ),
+            ),
+            if (widget.isGuest && !widget.showGuestLoginCta)
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: Semantics(
+                      key: const Key('guest_link_account_cta'),
+                      button: true,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: _navigateToLogin,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: RichText(
+                            textAlign: TextAlign.center,
+                            text: TextSpan(
+                              style: Theme.of(
+                                context,
+                              ).textTheme.bodyMedium?.copyWith(fontSize: 14),
+                              children: [
+                                TextSpan(
+                                  text: "Link an account",
+                                  style: TextStyle(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const TextSpan(
+                                  text: " to keep your data on all devices.",
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
+          ],
+        ),
         floatingActionButton: Builder(
           builder: (ctx) {
-            void _onFabPressed() {
+            void onFabPressed() {
               final isTrial = getIt<AppMode>().isTrial;
               final s = ctx.read<ProjectBloc>().state;
               final count = s is ProjectsLoaded ? s.projects.length : 0;
@@ -267,12 +341,17 @@ class _HomeScreenState extends State<HomeScreen> {
               _showProjectSheet();
             }
 
-            return FloatingActionButton(
-              onPressed: _onFabPressed,
-              tooltip: isTrial
-                  ? "Trial: $projectsCount/${Quota.projects} project"
-                  : "Add Project",
-              child: const Icon(Icons.add),
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: widget.isGuest && !widget.showGuestLoginCta ? 56 : 0,
+              ),
+              child: FloatingActionButton(
+                onPressed: onFabPressed,
+                tooltip: isTrial
+                    ? "Trial: $projectsCount/${Quota.projects} project"
+                    : "Add Project",
+                child: const Icon(Icons.add),
+              ),
             );
           },
         ),

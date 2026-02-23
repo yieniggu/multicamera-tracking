@@ -12,6 +12,7 @@ import 'package:multicamera_tracking/features/surveillance/domain/entities/proje
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/project/project_bloc.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/project/project_event.dart';
 import 'package:multicamera_tracking/shared/domain/services/app_mode.dart';
+import 'package:multicamera_tracking/shared/utils/normalized_text.dart';
 
 class AddProjectSheet extends StatefulWidget {
   final Project? existingProject;
@@ -48,7 +49,9 @@ class _AddProjectSheetState extends State<AddProjectSheet> {
     if (user == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("User not found. Try signing in again.")),
+          const SnackBar(
+            content: Text("User not found. Try signing in again."),
+          ),
         );
       }
       return;
@@ -108,8 +111,19 @@ class _AddProjectSheetState extends State<AddProjectSheet> {
               TextFormField(
                 controller: _nameController,
                 decoration: const InputDecoration(labelText: "Project Name"),
-                validator: (v) =>
-                    v == null || v.trim().isEmpty ? "Required" : null,
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return "Required";
+                  final normalized = normalizeComparableText(v);
+                  final hasDuplicate = projects.any(
+                    (project) =>
+                        project.id != widget.existingProject?.id &&
+                        normalizeComparableText(project.name) == normalized,
+                  );
+                  if (hasDuplicate) {
+                    return "Project name must be unique.";
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 10),
               TextFormField(
