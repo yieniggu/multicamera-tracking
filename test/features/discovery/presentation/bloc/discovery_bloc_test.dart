@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:multicamera_tracking/features/auth/domain/entities/access_role.dart';
 import 'package:multicamera_tracking/features/auth/domain/entities/auth_user.dart';
+import 'package:multicamera_tracking/features/auth/domain/entities/pending_auth_link.dart';
 import 'package:multicamera_tracking/features/auth/domain/repositories/auth_repository.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/get_current_user.dart';
 import 'package:multicamera_tracking/features/discovery/domain/entities/discovered_device.dart';
@@ -80,6 +81,21 @@ class _FakeAuthRepository implements AuthRepository {
   @override
   Future<AuthUser?> signInWithEmail(String email, String password) async =>
       _current;
+
+  @override
+  Future<AuthUser?> signInWithGoogle() async => _current;
+
+  @override
+  Future<AuthUser?> signInWithMicrosoft() async => _current;
+
+  @override
+  Future<bool> linkPendingCredentialToCurrentUser() async => false;
+
+  @override
+  PendingAuthLink? get pendingAuthLink => null;
+
+  @override
+  void clearPendingAuthLink() {}
 
   @override
   Future<void> signOut() async {}
