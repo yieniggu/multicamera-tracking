@@ -48,11 +48,15 @@ class AuthSignedInWithGoogle extends AuthEvent {
 
 class AuthSignedInWithMicrosoft extends AuthEvent {
   final bool shouldMigrateGuestData;
+  final String? emailHint;
 
-  const AuthSignedInWithMicrosoft({this.shouldMigrateGuestData = false});
+  const AuthSignedInWithMicrosoft({
+    this.shouldMigrateGuestData = false,
+    this.emailHint,
+  });
 
   @override
-  List<Object?> get props => [shouldMigrateGuestData];
+  List<Object?> get props => [shouldMigrateGuestData, emailHint];
 }
 
 class AuthPendingLinkResolvedWithProvider extends AuthEvent {
@@ -86,3 +90,16 @@ class AuthForcedGuestMigrationRequested extends AuthEvent {
 class AuthMigrationPromptDismissed extends AuthEvent {}
 
 class AuthSignedOut extends AuthEvent {}
+
+class AuthEmailVerificationCheckRequested extends AuthEvent {
+  final bool silent;
+
+  const AuthEmailVerificationCheckRequested({this.silent = false});
+
+  @override
+  List<Object?> get props => [silent];
+}
+
+class AuthEmailVerificationResendRequested extends AuthEvent {}
+
+class AuthEmailVerificationFeedbackCleared extends AuthEvent {}
