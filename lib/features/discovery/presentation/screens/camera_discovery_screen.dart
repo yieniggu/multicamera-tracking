@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:multicamera_tracking/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:multicamera_tracking/features/auth/presentation/bloc/auth_state.dart';
+import 'package:multicamera_tracking/features/auth/presentation/screens/preferences_screen.dart';
 import 'package:multicamera_tracking/features/discovery/domain/entities/discovered_device.dart';
 import 'package:multicamera_tracking/features/discovery/presentation/bloc/discovery_bloc.dart';
 import 'package:multicamera_tracking/features/discovery/presentation/bloc/discovery_event.dart';
@@ -17,6 +20,17 @@ class CameraDiscoveryScreen extends StatefulWidget {
 class _CameraDiscoveryScreenState extends State<CameraDiscoveryScreen> {
   bool _includeDeepScan = true;
   bool _showUnrelatedDevices = false;
+
+  void _openPreferences() {
+    final authState = context.read<AuthBloc>().state;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PreferencesScreen(
+          isGuest: authState is AuthAuthenticated && authState.isGuest,
+        ),
+      ),
+    );
+  }
 
   void _startScan() {
     setState(() => _showUnrelatedDevices = false);
@@ -251,7 +265,17 @@ class _CameraDiscoveryScreenState extends State<CameraDiscoveryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Camera Discovery')),
+      appBar: AppBar(
+        title: const Text('Camera Discovery'),
+        actions: [
+          IconButton(
+            key: const Key('discovery_settings_button'),
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Preferences',
+            onPressed: _openPreferences,
+          ),
+        ],
+      ),
       body: BlocBuilder<DiscoveryBloc, DiscoveryState>(
         builder: (context, state) {
           final isScanning = state.status == DiscoveryStatus.scanning;

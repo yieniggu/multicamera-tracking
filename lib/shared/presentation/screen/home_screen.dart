@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import 'package:multicamera_tracking/features/auth/presentation/bloc/auth_bloc.dart';
-import 'package:multicamera_tracking/features/auth/presentation/bloc/auth_event.dart';
 import 'package:multicamera_tracking/features/auth/presentation/screens/login_screen.dart';
+import 'package:multicamera_tracking/features/auth/presentation/screens/preferences_screen.dart';
 import 'package:multicamera_tracking/features/auth/presentation/screens/register_screen.dart';
 
 import 'package:multicamera_tracking/features/surveillance/domain/entities/project.dart';
@@ -78,10 +77,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _logout() async {
-    if (mounted) {
-      context.read<AuthBloc>().add(AuthSignedOut());
-    }
+  void _openPreferences() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PreferencesScreen(isGuest: widget.isGuest),
+      ),
+    );
   }
 
   void _goToProjectDetail(Project project) {
@@ -188,10 +189,10 @@ class _HomeScreenState extends State<HomeScreen> {
           title: const Text("Camera Viewer"),
           actions: [
             IconButton(
-              key: const Key('home_logout_button'),
-              icon: const Icon(Icons.logout),
-              tooltip: 'Sign out',
-              onPressed: _logout,
+              key: const Key('home_settings_button'),
+              icon: const Icon(Icons.settings_outlined),
+              tooltip: 'Preferences',
+              onPressed: _openPreferences,
             ),
           ],
         ),

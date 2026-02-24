@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
@@ -27,9 +29,11 @@ import 'package:multicamera_tracking/features/surveillance/data/repositories_imp
 import 'package:multicamera_tracking/features/surveillance/data/repositories_impl/group_repository_impl.dart';
 import 'package:multicamera_tracking/features/surveillance/data/repositories_impl/project_repository_impl.dart';
 import 'package:multicamera_tracking/features/auth/data/repositories_impl/firebase_auth_repository.dart';
+import 'package:multicamera_tracking/features/user_profile/data/repositories_impl/firestore_user_profile_repository.dart';
 
 // Domain repositories
 import 'package:multicamera_tracking/features/auth/domain/repositories/auth_repository.dart';
+import 'package:multicamera_tracking/features/user_profile/domain/repositories/user_profile_repository.dart';
 import 'package:multicamera_tracking/features/surveillance/domain/repositories/camera_repository.dart';
 import 'package:multicamera_tracking/features/surveillance/domain/repositories/group_repository.dart';
 import 'package:multicamera_tracking/features/surveillance/domain/repositories/project_repository.dart';
@@ -59,18 +63,37 @@ import 'package:multicamera_tracking/shared/services_impl/quota_guard_impl.dart'
 
 // Use Cases
 import 'package:multicamera_tracking/features/auth/domain/use_cases/get_current_user.dart';
+import 'package:multicamera_tracking/features/auth/domain/use_cases/get_contact_email.dart';
+import 'package:multicamera_tracking/features/auth/domain/use_cases/get_linked_sign_in_methods.dart';
+import 'package:multicamera_tracking/features/auth/domain/use_cases/get_pending_email_verification.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/link_pending_credential.dart';
+import 'package:multicamera_tracking/features/auth/domain/use_cases/refresh_pending_email_verification.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/register_with_email.dart';
+import 'package:multicamera_tracking/features/auth/domain/use_cases/reauthenticate_with_google.dart';
+import 'package:multicamera_tracking/features/auth/domain/use_cases/reauthenticate_with_microsoft.dart';
+import 'package:multicamera_tracking/features/auth/domain/use_cases/reauthenticate_with_password.dart';
+import 'package:multicamera_tracking/features/auth/domain/use_cases/send_email_verification_to_current_user.dart';
+import 'package:multicamera_tracking/features/auth/domain/use_cases/send_password_reset_email.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/sign_out.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/signin_anonymously.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/signin_with_email.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/signin_with_google.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/signin_with_microsoft.dart';
+import 'package:multicamera_tracking/features/auth/domain/use_cases/change_account_email.dart';
+import 'package:multicamera_tracking/features/auth/domain/use_cases/change_account_password.dart';
+import 'package:multicamera_tracking/features/auth/domain/use_cases/set_account_password.dart';
+import 'package:multicamera_tracking/features/user_profile/domain/use_cases/ensure_current_user_profile_initialized.dart';
+import 'package:multicamera_tracking/features/user_profile/domain/use_cases/get_current_user_language.dart';
+import 'package:multicamera_tracking/features/user_profile/domain/use_cases/get_current_user_profile.dart';
+import 'package:multicamera_tracking/features/user_profile/domain/use_cases/update_current_user_language.dart';
+import 'package:multicamera_tracking/features/user_profile/domain/use_cases/update_current_user_profile.dart';
 import 'package:multicamera_tracking/features/surveillance/domain/use_cases/init_user_data.dart';
 import 'package:multicamera_tracking/features/surveillance/domain/use_cases/get_guest_migration_preview.dart';
 import 'package:multicamera_tracking/features/surveillance/domain/use_cases/migrate_guest_data.dart';
 
 // Blocs
+import 'package:multicamera_tracking/features/auth/presentation/bloc/account_settings_bloc.dart';
+import 'package:multicamera_tracking/features/auth/presentation/bloc/account_profile_bloc.dart';
 import 'package:multicamera_tracking/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/project/project_bloc.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/group/group_bloc.dart';
@@ -82,9 +105,11 @@ import 'package:multicamera_tracking/shared/domain/use_cases/reset_local_debug_d
 import 'package:multicamera_tracking/features/discovery/data/services/hybrid_network_discovery_service.dart';
 import 'package:multicamera_tracking/features/discovery/domain/services/network_discovery_service.dart';
 import 'package:multicamera_tracking/features/discovery/presentation/bloc/discovery_bloc.dart';
+import 'package:multicamera_tracking/shared/presentation/bloc/app_locale_cubit.dart';
 
 final GetIt getIt = GetIt.instance;
 bool _dependenciesInitialized = false;
+Future<void>? _dependenciesInitialization;
 final Set<String> _openedHiveBoxes = <String>{};
 
 Future<void> resetDependencies({bool clearLocalData = false}) async {
@@ -110,6 +135,7 @@ Future<void> resetDependencies({bool clearLocalData = false}) async {
   await Hive.close();
   _openedHiveBoxes.clear();
   _dependenciesInitialized = false;
+  _dependenciesInitialization = null;
 }
 
 Future<void> initDependencies({
@@ -119,13 +145,21 @@ Future<void> initDependencies({
     debugPrint("[DI] Dependencies already initialized; skipping.");
     return;
   }
+  final inFlightInitialization = _dependenciesInitialization;
+  if (inFlightInitialization != null) {
+    debugPrint(
+      "[DI] Dependencies initialization already in progress; awaiting.",
+    );
+    await inFlightInitialization;
+    return;
+  }
+
+  final initializationCompleter = Completer<void>();
+  _dependenciesInitialization = initializationCompleter.future;
+
   debugPrint("[DI] Initializing Dependencies...");
   try {
-    if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
-    }
+    await _ensureFirebaseInitialized();
     await Hive.initFlutter();
 
     // Register Hive adapters
@@ -247,6 +281,12 @@ Future<void> initDependencies({
     getIt.registerLazySingleton<AuthRepository>(
       () => FirebaseAuthRepository(getIt()),
     );
+    getIt.registerLazySingleton<UserProfileRepository>(
+      () => FirestoreUserProfileRepository(
+        firestore: getIt(),
+        firebaseAuth: getIt(),
+      ),
+    );
 
     // Services
     getIt.registerLazySingleton<GuestDataService>(
@@ -263,6 +303,7 @@ Future<void> initDependencies({
         projectRepository: getIt(),
         groupRepository: getIt(),
         authRepository: getIt(),
+        userProfileRepository: getIt(),
       ),
     );
 
@@ -290,6 +331,18 @@ Future<void> initDependencies({
     getIt.registerLazySingleton<GetCurrentUserUseCase>(
       () => GetCurrentUserUseCase(getIt()),
     );
+    getIt.registerLazySingleton<GetPendingEmailVerificationUseCase>(
+      () => GetPendingEmailVerificationUseCase(getIt()),
+    );
+    getIt.registerLazySingleton<RefreshPendingEmailVerificationUseCase>(
+      () => RefreshPendingEmailVerificationUseCase(getIt()),
+    );
+    getIt.registerLazySingleton<SendEmailVerificationToCurrentUserUseCase>(
+      () => SendEmailVerificationToCurrentUserUseCase(getIt()),
+    );
+    getIt.registerLazySingleton<SendPasswordResetEmailUseCase>(
+      () => SendPasswordResetEmailUseCase(getIt()),
+    );
     getIt.registerLazySingleton<RegisterWithEmailUseCase>(
       () => RegisterWithEmailUseCase(getIt()),
     );
@@ -304,6 +357,45 @@ Future<void> initDependencies({
     );
     getIt.registerLazySingleton<SignInAnonymouslyUseCase>(
       () => SignInAnonymouslyUseCase(getIt()),
+    );
+    getIt.registerLazySingleton<GetLinkedSignInMethodsUseCase>(
+      () => GetLinkedSignInMethodsUseCase(getIt()),
+    );
+    getIt.registerLazySingleton<GetContactEmailUseCase>(
+      () => GetContactEmailUseCase(getIt()),
+    );
+    getIt.registerLazySingleton<SetAccountPasswordUseCase>(
+      () => SetAccountPasswordUseCase(getIt()),
+    );
+    getIt.registerLazySingleton<ChangeAccountPasswordUseCase>(
+      () => ChangeAccountPasswordUseCase(getIt()),
+    );
+    getIt.registerLazySingleton<ChangeAccountEmailUseCase>(
+      () => ChangeAccountEmailUseCase(getIt()),
+    );
+    getIt.registerLazySingleton<EnsureCurrentUserProfileInitializedUseCase>(
+      () => EnsureCurrentUserProfileInitializedUseCase(getIt()),
+    );
+    getIt.registerLazySingleton<GetCurrentUserProfileUseCase>(
+      () => GetCurrentUserProfileUseCase(getIt()),
+    );
+    getIt.registerLazySingleton<UpdateCurrentUserProfileUseCase>(
+      () => UpdateCurrentUserProfileUseCase(getIt()),
+    );
+    getIt.registerLazySingleton<GetCurrentUserLanguageUseCase>(
+      () => GetCurrentUserLanguageUseCase(getIt()),
+    );
+    getIt.registerLazySingleton<UpdateCurrentUserLanguageUseCase>(
+      () => UpdateCurrentUserLanguageUseCase(getIt()),
+    );
+    getIt.registerLazySingleton<ReauthenticateWithPasswordUseCase>(
+      () => ReauthenticateWithPasswordUseCase(getIt()),
+    );
+    getIt.registerLazySingleton<ReauthenticateWithGoogleUseCase>(
+      () => ReauthenticateWithGoogleUseCase(getIt()),
+    );
+    getIt.registerLazySingleton<ReauthenticateWithMicrosoftUseCase>(
+      () => ReauthenticateWithMicrosoftUseCase(getIt()),
     );
     getIt.registerLazySingleton<LinkPendingCredentialUseCase>(
       () => LinkPendingCredentialUseCase(getIt()),
@@ -344,11 +436,39 @@ Future<void> initDependencies({
         linkPendingCredentialUseCase: getIt(),
         signOutUseCase: getIt(),
         initUserDataUseCase: getIt(),
+        getPendingEmailVerificationUseCase: getIt(),
+        refreshPendingEmailVerificationUseCase: getIt(),
+        sendEmailVerificationToCurrentUserUseCase: getIt(),
         migrateGuestDataUseCase: getIt(),
         getGuestMigrationPreviewUseCase: getIt(),
         adoptLocalGuestDataForUserUseCase: getIt(),
         resolveGuestMigrationSourceUseCase: getIt(),
         appMode: getIt(),
+      ),
+    );
+    getIt.registerFactory(
+      () => AccountSettingsBloc(
+        getLinkedSignInMethodsUseCase: getIt(),
+        getContactEmailUseCase: getIt(),
+        setAccountPasswordUseCase: getIt(),
+        changeAccountPasswordUseCase: getIt(),
+        changeAccountEmailUseCase: getIt(),
+        reauthenticateWithPasswordUseCase: getIt(),
+        reauthenticateWithGoogleUseCase: getIt(),
+        reauthenticateWithMicrosoftUseCase: getIt(),
+      ),
+    );
+    getIt.registerFactory(
+      () => AccountProfileBloc(
+        getCurrentUserProfileUseCase: getIt(),
+        updateCurrentUserProfileUseCase: getIt(),
+        getContactEmailUseCase: getIt(),
+      ),
+    );
+    getIt.registerLazySingleton<AppLocaleCubit>(
+      () => AppLocaleCubit(
+        userProfileRepository: getIt(),
+        authRepository: getIt(),
       ),
     );
 
@@ -429,10 +549,32 @@ Future<void> initDependencies({
 
     debugPrint("[DI] Dependencies initialized");
     _dependenciesInitialized = true;
+    if (!initializationCompleter.isCompleted) {
+      initializationCompleter.complete();
+    }
   } catch (e) {
+    if (!initializationCompleter.isCompleted) {
+      initializationCompleter.completeError(e);
+    }
     debugPrint("[DI] Error during DI setup");
     debugPrint(e.toString());
     debugPrintStack();
     rethrow;
+  } finally {
+    _dependenciesInitialization = null;
+  }
+}
+
+Future<void> _ensureFirebaseInitialized() async {
+  if (Firebase.apps.isNotEmpty) return;
+
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } on FirebaseException catch (e) {
+    if (e.code != 'duplicate-app') rethrow;
+    // Another initializer may have raced; treat as success if default app exists.
+    if (Firebase.apps.isEmpty) rethrow;
   }
 }
