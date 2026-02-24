@@ -8,6 +8,7 @@ import 'package:multicamera_tracking/features/auth/domain/entities/auth_provider
 import 'package:multicamera_tracking/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:multicamera_tracking/features/auth/presentation/bloc/auth_event.dart';
 import 'package:multicamera_tracking/features/auth/presentation/bloc/auth_state.dart';
+import 'package:multicamera_tracking/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:multicamera_tracking/features/auth/presentation/screens/register_screen.dart';
 import 'package:multicamera_tracking/features/auth/presentation/widgets/auth_localization.dart';
 import 'package:multicamera_tracking/features/auth/presentation/widgets/social_auth_buttons.dart';
@@ -27,6 +28,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final emailCtrl = TextEditingController();
   final passCtrl = TextEditingController();
   bool hideGuestButton = false;
+  bool _linkDialogInFlight = false;
+  String? _lastShownFailureKey;
 
   @override
   void initState() {
@@ -100,9 +103,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _showLinkRequiredDialog(AuthLinkRequired state) async {
     final l10n = AppLocalizations.of(context)!;
-    final providers = state.pendingLink.existingProviders.isEmpty
-        ? [AuthProviderType.password]
-        : state.pendingLink.existingProviders;
+    final providers = state.pendingLink.existingProviders;
     await showDialog<void>(
       context: context,
       builder: (dialogContext) {
@@ -158,6 +159,33 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  void _showFailureSnackbar(String messageKey) {
+    if (!mounted) return;
+    if (_lastShownFailureKey == messageKey) return;
+    _lastShownFailureKey = messageKey;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(content: Text(authErrorMessage(context, messageKey))),
+    );
+  }
+
+  void _ensureLinkRequiredDialog(AuthLinkRequired state) {
+    if (_linkDialogInFlight) return;
+    _linkDialogInFlight = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) {
+        _linkDialogInFlight = false;
+        return;
+      }
+      try {
+        await _showLinkRequiredDialog(state);
+      } finally {
+        _linkDialogInFlight = false;
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -175,19 +203,30 @@ class _LoginScreenState extends State<LoginScreen> {
           if (navigator.canPop()) {
             navigator.pop();
           }
-        } else if (state is AuthLinkRequired) {
-          await _showLinkRequiredDialog(state);
-        } else if (state is AuthFailure) {
+        } else if (state is AuthEmailVerificationRequired) {
           if (!mounted) return;
-          ScaffoldMessenger.of(this.context).showSnackBar(
-            SnackBar(
-              content: Text(authErrorMessage(this.context, state.message)),
-            ),
-          );
+          final navigator = Navigator.of(this.context);
+          if (navigator.canPop()) {
+            navigator.popUntil((route) => route.isFirst);
+          }
+        } else if (state is AuthLinkRequired) {
+          _ensureLinkRequiredDialog(state);
+        } else if (state is AuthFailure) {
+          _showFailureSnackbar(state.message);
         }
       },
       builder: (context, state) {
         final isLoading = state is AuthLoading;
+        if (state is AuthFailure) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _showFailureSnackbar(state.message);
+          });
+        } else {
+          _lastShownFailureKey = null;
+        }
+        if (state is AuthLinkRequired) {
+          _ensureLinkRequiredDialog(state);
+        }
         return Scaffold(
           appBar: AppBar(title: Text(l10n.authLoginTitle)),
           body: SingleChildScrollView(
@@ -220,6 +259,19 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : Text(l10n.authLoginButton),
+                ),
+                TextButton(
+                  key: const Key('forgot_password_button'),
+                  onPressed: isLoading
+                      ? null
+                      : () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const ForgotPasswordScreen(),
+                            ),
+                          );
+                        },
+                  child: Text(l10n.authForgotPasswordAction),
                 ),
                 const SizedBox(height: 12),
                 SocialAuthButtons(

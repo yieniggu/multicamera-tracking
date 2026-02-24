@@ -3,7 +3,9 @@ import 'auth_provider_type.dart';
 enum AuthFailureCode {
   cancelled,
   invalidCredentials,
+  emailNotVerified,
   emailAlreadyInUse,
+  accountAlreadyExists,
   accountExistsWithDifferentCredential,
   credentialAlreadyInUse,
   requiresRecentLogin,

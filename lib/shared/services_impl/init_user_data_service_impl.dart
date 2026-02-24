@@ -6,6 +6,7 @@ import 'package:multicamera_tracking/features/surveillance/domain/entities/group
 import 'package:multicamera_tracking/features/surveillance/domain/repositories/project_repository.dart';
 import 'package:multicamera_tracking/features/surveillance/domain/repositories/group_repository.dart';
 import 'package:multicamera_tracking/shared/domain/services/init_user_data_service.dart';
+import 'package:multicamera_tracking/features/user_profile/domain/repositories/user_profile_repository.dart';
 import 'package:uuid/uuid.dart';
 import 'package:collection/collection.dart';
 
@@ -15,12 +16,14 @@ class InitUserDataServiceImpl implements InitUserDataService {
   @override
   final GroupRepository groupRepository;
   final AuthRepository authRepository;
+  final UserProfileRepository userProfileRepository;
   Future<void>? _inFlightEnsure;
 
   InitUserDataServiceImpl({
     required this.projectRepository,
     required this.groupRepository,
     required this.authRepository,
+    required this.userProfileRepository,
   });
 
   @override
@@ -42,7 +45,15 @@ class InitUserDataServiceImpl implements InitUserDataService {
   Future<void> _ensureDefaultProjectAndGroupImpl() async {
     debugPrint("[ENSURE-DEFAULT] Initializing defaults");
 
-    final userId = authRepository.currentUser!.id;
+    final currentUser = authRepository.currentUser;
+    if (currentUser == null) {
+      return;
+    }
+    if (!currentUser.isAnonymous) {
+      await userProfileRepository.ensureCurrentUserProfileInitialized();
+    }
+
+    final userId = currentUser.id;
     final allProjects = await projectRepository.getAll();
     final existingProject = allProjects.firstWhereOrNull((p) => p.isDefault);
 

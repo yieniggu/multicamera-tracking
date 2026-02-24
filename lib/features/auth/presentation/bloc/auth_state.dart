@@ -70,3 +70,42 @@ class AuthLinkRequired extends AuthState {
   @override
   List<Object?> get props => [pendingLink, code];
 }
+
+class AuthEmailVerificationRequired extends AuthState {
+  final String email;
+  final bool isChecking;
+  final bool isResending;
+  final String? feedbackMessageKey;
+
+  const AuthEmailVerificationRequired({
+    required this.email,
+    this.isChecking = false,
+    this.isResending = false,
+    this.feedbackMessageKey,
+  });
+
+  AuthEmailVerificationRequired copyWith({
+    String? email,
+    bool? isChecking,
+    bool? isResending,
+    String? feedbackMessageKey,
+    bool clearFeedback = false,
+  }) {
+    return AuthEmailVerificationRequired(
+      email: email ?? this.email,
+      isChecking: isChecking ?? this.isChecking,
+      isResending: isResending ?? this.isResending,
+      feedbackMessageKey: clearFeedback
+          ? null
+          : (feedbackMessageKey ?? this.feedbackMessageKey),
+    );
+  }
+
+  @override
+  List<Object?> get props => [
+    email,
+    isChecking,
+    isResending,
+    feedbackMessageKey,
+  ];
+}

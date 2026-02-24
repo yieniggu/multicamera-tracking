@@ -7,12 +7,16 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:multicamera_tracking/config/di.dart';
 import 'package:multicamera_tracking/features/auth/domain/entities/auth_failure_exception.dart';
+import 'package:multicamera_tracking/features/auth/domain/entities/auth_provider_type.dart';
 import 'package:multicamera_tracking/features/auth/domain/entities/auth_user.dart';
 import 'package:multicamera_tracking/features/auth/domain/entities/pending_auth_link.dart';
 import 'package:multicamera_tracking/features/auth/domain/repositories/auth_repository.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/get_current_user.dart';
+import 'package:multicamera_tracking/features/auth/domain/use_cases/get_pending_email_verification.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/link_pending_credential.dart';
+import 'package:multicamera_tracking/features/auth/domain/use_cases/refresh_pending_email_verification.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/register_with_email.dart';
+import 'package:multicamera_tracking/features/auth/domain/use_cases/send_email_verification_to_current_user.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/sign_out.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/signin_anonymously.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/signin_with_email.dart';
@@ -44,7 +48,10 @@ class _FakeAuthRepository implements AuthRepository {
   final _authController = StreamController<AuthUser?>.broadcast();
   Completer<AuthUser?>? googleCompleter;
   AuthFailureException? googleException;
+  AuthFailureException? emailException;
+  AuthFailureException? registerException;
   int googleSignInCalls = 0;
+  int microsoftSignInCalls = 0;
 
   @override
   Stream<AuthUser?> authStateChanges() => _authController.stream;
@@ -62,15 +69,22 @@ class _FakeAuthRepository implements AuthRepository {
   Future<bool> linkPendingCredentialToCurrentUser() async => false;
 
   @override
-  Future<AuthUser?> registerWithEmail(String email, String password) async =>
-      null;
+  Future<AuthUser?> registerWithEmail(String email, String password) async {
+    if (registerException != null) throw registerException!;
+    return null;
+  }
+
+  @override
+  Future<void> sendPasswordResetEmail(String email) async {}
 
   @override
   Future<AuthUser?> signInAnonymously() async => const AuthUser(id: 'guest');
 
   @override
-  Future<AuthUser?> signInWithEmail(String email, String password) async =>
-      const AuthUser(id: 'email-user', email: 'email@example.com');
+  Future<AuthUser?> signInWithEmail(String email, String password) async {
+    if (emailException != null) throw emailException!;
+    return const AuthUser(id: 'email-user', email: 'email@example.com');
+  }
 
   @override
   Future<AuthUser?> signInWithGoogle() async {
@@ -81,11 +95,55 @@ class _FakeAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<AuthUser?> signInWithMicrosoft() async =>
-      const AuthUser(id: 'microsoft-user', email: 'microsoft@example.com');
+  Future<AuthUser?> signInWithMicrosoft({String? emailHint}) async {
+    microsoftSignInCalls += 1;
+    return const AuthUser(id: 'microsoft-user', email: 'microsoft@example.com');
+  }
 
   @override
   Future<void> signOut() async {}
+
+  @override
+  Future<List<AuthProviderType>> getLinkedSignInMethods() async => const [
+    AuthProviderType.password,
+  ];
+
+  @override
+  Future<String?> getContactEmail() async => currentUser?.email;
+
+  @override
+  Future<void> setPassword(String newPassword) async {}
+
+  @override
+  Future<void> changePassword(String newPassword) async {}
+
+  @override
+  Future<void> changeEmail(String newEmail) async {}
+
+  @override
+  Future<void> reauthenticateWithPassword({
+    required String email,
+    required String password,
+  }) async {}
+
+  @override
+  Future<void> reauthenticateWithGoogle() async {}
+
+  @override
+  Future<void> reauthenticateWithMicrosoft() async {}
+
+  @override
+  Future<String?> getPendingEmailVerificationEmail() async {
+    return null;
+  }
+
+  @override
+  Future<String?> refreshPendingEmailVerificationEmail() async {
+    return null;
+  }
+
+  @override
+  Future<void> sendEmailVerificationToCurrentUser() async {}
 
   Future<void> dispose() async {
     await _authController.close();
@@ -192,6 +250,13 @@ void main() {
       linkPendingCredentialUseCase: LinkPendingCredentialUseCase(repository),
       signOutUseCase: SignOutUseCase(repository),
       getCurrentUserUseCase: GetCurrentUserUseCase(repository),
+      getPendingEmailVerificationUseCase: GetPendingEmailVerificationUseCase(
+        repository,
+      ),
+      refreshPendingEmailVerificationUseCase:
+          RefreshPendingEmailVerificationUseCase(repository),
+      sendEmailVerificationToCurrentUserUseCase:
+          SendEmailVerificationToCurrentUserUseCase(repository),
       initUserDataUseCase: InitUserDataUseCase(_NoopInitUserDataService()),
       migrateGuestDataUseCase: MigrateGuestDataUseCase(_NoopMigrationService()),
       getGuestMigrationPreviewUseCase: GetGuestMigrationPreviewUseCase(
@@ -304,6 +369,18 @@ void main() {
     },
   );
 
+  testWidgets('opens forgot password screen from login', (tester) async {
+    await pumpLoginScreen(tester);
+
+    await tester.tap(find.byKey(const Key('forgot_password_button')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('forgot_password_submit_button')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('debug reset local data action clears local data', (
     tester,
   ) async {
@@ -316,5 +393,15 @@ void main() {
 
     expect(guestDataService.clearCalls, 1);
     expect(find.text('Local data cleared.'), findsOneWidget);
+  });
+
+  testWidgets('allows Microsoft sign-in without email hint', (tester) async {
+    await pumpLoginScreen(tester);
+
+    await tester.tap(find.byKey(const Key('microsoft_sign_in_button')));
+    await tester.pumpAndSettle();
+
+    expect(repository.microsoftSignInCalls, 1);
+    expect(find.text('Email required'), findsNothing);
   });
 }

@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:multicamera_tracking/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:multicamera_tracking/features/auth/presentation/bloc/auth_event.dart';
 import 'package:multicamera_tracking/features/auth/presentation/bloc/auth_state.dart';
+import 'package:multicamera_tracking/features/auth/presentation/screens/email_verification_pending_screen.dart';
 import 'package:multicamera_tracking/features/auth/presentation/screens/migration_conflict_screen.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/project/project_bloc.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/project/project_event.dart';
@@ -13,6 +14,7 @@ import 'package:multicamera_tracking/features/surveillance/presentation/bloc/cam
 import 'package:multicamera_tracking/shared/domain/entities/guest_migration.dart';
 import 'package:multicamera_tracking/shared/presentation/screen/initial_home_shell_screen.dart';
 import 'package:multicamera_tracking/features/auth/presentation/screens/login_screen.dart';
+import 'package:multicamera_tracking/shared/presentation/bloc/app_locale_cubit.dart';
 
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
@@ -24,6 +26,7 @@ class AuthGate extends StatefulWidget {
 class _AuthGateState extends State<AuthGate> {
   String? _lastUserId;
   bool _isShowingMigrationDialog = false;
+  AuthState? _lastNonLoadingState;
 
   void _showMigrationDialog(AuthAuthenticated state) {
     if (_isShowingMigrationDialog ||
@@ -81,11 +84,15 @@ class _AuthGateState extends State<AuthGate> {
     );
     return BlocListener<AuthBloc, AuthState>(
       listener: (context, state) {
+        if (state is! AuthLoading) {
+          _lastNonLoadingState = state;
+        }
         final projectBloc = context.read<ProjectBloc>();
         final groupBloc = context.read<GroupBloc>();
         final cameraBloc = context.read<CameraBloc>();
 
         if (state is AuthUnauthenticated) {
+          context.read<AppLocaleCubit>().hydrate();
           _lastUserId = null;
           projectBloc.add(ResetProjects());
           groupBloc.add(ResetGroups());
@@ -94,6 +101,7 @@ class _AuthGateState extends State<AuthGate> {
         }
 
         if (state is AuthAuthenticated) {
+          context.read<AppLocaleCubit>().hydrate();
           final nextUserId = state.user.id;
           if (_lastUserId != nextUserId) {
             _lastUserId = nextUserId;
@@ -106,7 +114,25 @@ class _AuthGateState extends State<AuthGate> {
       child: BlocBuilder<AuthBloc, AuthState>(
         builder: (context, state) {
           debugPrint("[AUTH-GATE] BlocBuilder triggered. State: $state");
-          if (state is AuthInitial || state is AuthLoading) {
+          if (state is AuthInitial) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
+
+          if (state is AuthLoading) {
+            final last = _lastNonLoadingState;
+            if (last is AuthAuthenticated) {
+              return InitialHomeShellScreen(isGuest: last.isGuest);
+            }
+            if (last is AuthEmailVerificationRequired) {
+              return const EmailVerificationPendingScreen();
+            }
+            if (last is AuthUnauthenticated ||
+                last is AuthFailure ||
+                last is AuthLinkRequired) {
+              return const LoginScreen();
+            }
             return const Scaffold(
               body: Center(child: CircularProgressIndicator()),
             );
@@ -118,6 +144,10 @@ class _AuthGateState extends State<AuthGate> {
               "[AUTH-GATE] User authenticated, loading home screen. (isguest=${state.isGuest})",
             );
             return InitialHomeShellScreen(isGuest: state.isGuest);
+          }
+
+          if (state is AuthEmailVerificationRequired) {
+            return const EmailVerificationPendingScreen();
           }
 
           debugPrint(

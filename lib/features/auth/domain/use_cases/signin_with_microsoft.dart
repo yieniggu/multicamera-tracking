@@ -6,7 +6,7 @@ class SignInWithMicrosoftUseCase {
 
   SignInWithMicrosoftUseCase(this.repository);
 
-  Future<AuthUser?> call() {
-    return repository.signInWithMicrosoft();
+  Future<AuthUser?> call({String? emailHint}) {
+    return repository.signInWithMicrosoft(emailHint: emailHint);
   }
 }

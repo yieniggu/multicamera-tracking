@@ -11,6 +11,7 @@ import 'package:multicamera_tracking/features/surveillance/presentation/bloc/pro
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/group/group_bloc.dart';
 import 'package:multicamera_tracking/features/surveillance/presentation/bloc/camera/camera_bloc.dart';
 import 'package:multicamera_tracking/features/discovery/presentation/bloc/discovery_bloc.dart';
+import 'package:multicamera_tracking/shared/presentation/bloc/app_locale_cubit.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,39 +19,52 @@ void main() async {
   await initDependencies(config: DependencyConfig.fromEnvironment());
 
   final authBloc = getIt<AuthBloc>()..add(AuthCheckRequested());
+  final appLocaleCubit = getIt<AppLocaleCubit>()..hydrate();
 
-  runApp(MyApp(authBloc: authBloc));
+  runApp(MyApp(authBloc: authBloc, appLocaleCubit: appLocaleCubit));
 }
 
 class MyApp extends StatelessWidget {
   final AuthBloc authBloc;
+  final AppLocaleCubit appLocaleCubit;
 
-  const MyApp({super.key, required this.authBloc});
+  const MyApp({
+    super.key,
+    required this.authBloc,
+    required this.appLocaleCubit,
+  });
 
   @override
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
         BlocProvider<AuthBloc>.value(value: authBloc), // Reuse instance
+        BlocProvider<AppLocaleCubit>.value(value: appLocaleCubit),
         BlocProvider(create: (_) => getIt<ProjectBloc>()),
         BlocProvider(create: (_) => getIt<GroupBloc>()),
         BlocProvider(create: (_) => getIt<CameraBloc>()),
         BlocProvider(create: (_) => getIt<DiscoveryBloc>()),
       ],
-      child: MaterialApp(
-        onGenerateTitle: (context) => AppLocalizations.of(context)!.appTitle,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
-          useMaterial3: true,
-        ),
-        supportedLocales: AppLocalizations.supportedLocales,
-        localizationsDelegates: const [
-          AppLocalizations.delegate,
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        home: const AuthGate(),
+      child: BlocBuilder<AppLocaleCubit, AppLocaleState>(
+        builder: (context, localeState) {
+          return MaterialApp(
+            locale: localeState.locale,
+            onGenerateTitle: (context) =>
+                AppLocalizations.of(context)!.appTitle,
+            theme: ThemeData(
+              colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
+              useMaterial3: true,
+            ),
+            supportedLocales: AppLocalizations.supportedLocales,
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            home: const AuthGate(),
+          );
+        },
       ),
     );
   }

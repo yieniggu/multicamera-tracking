@@ -8,8 +8,11 @@ import 'package:multicamera_tracking/features/auth/domain/entities/auth_user.dar
 import 'package:multicamera_tracking/features/auth/domain/repositories/auth_repository.dart';
 import 'package:multicamera_tracking/shared/domain/services/app_mode.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/get_current_user.dart';
+import 'package:multicamera_tracking/features/auth/domain/use_cases/get_pending_email_verification.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/link_pending_credential.dart';
+import 'package:multicamera_tracking/features/auth/domain/use_cases/refresh_pending_email_verification.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/register_with_email.dart';
+import 'package:multicamera_tracking/features/auth/domain/use_cases/send_email_verification_to_current_user.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/sign_out.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/signin_anonymously.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/signin_with_email.dart';
@@ -37,6 +40,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final LinkPendingCredentialUseCase linkPendingCredentialUseCase;
   final SignOutUseCase signOutUseCase;
   final GetCurrentUserUseCase getCurrentUserUseCase;
+  final GetPendingEmailVerificationUseCase getPendingEmailVerificationUseCase;
+  final RefreshPendingEmailVerificationUseCase
+  refreshPendingEmailVerificationUseCase;
+  final SendEmailVerificationToCurrentUserUseCase
+  sendEmailVerificationToCurrentUserUseCase;
   final InitUserDataUseCase initUserDataUseCase;
   final MigrateGuestDataUseCase migrateGuestDataUseCase;
   final GetGuestMigrationPreviewUseCase getGuestMigrationPreviewUseCase;
@@ -58,6 +66,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     required this.linkPendingCredentialUseCase,
     required this.signOutUseCase,
     required this.getCurrentUserUseCase,
+    required this.getPendingEmailVerificationUseCase,
+    required this.refreshPendingEmailVerificationUseCase,
+    required this.sendEmailVerificationToCurrentUserUseCase,
     required this.initUserDataUseCase,
     required this.migrateGuestDataUseCase,
     required this.getGuestMigrationPreviewUseCase,
@@ -76,6 +87,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthForcedGuestMigrationRequested>(_onForcedGuestMigrationRequested);
     on<AuthMigrationPromptDismissed>(_onMigrationPromptDismissed);
     on<AuthSignedOut>(_onSignedOut);
+    on<AuthEmailVerificationCheckRequested>(_onEmailVerificationCheckRequested);
+    on<AuthEmailVerificationResendRequested>(
+      _onEmailVerificationResendRequested,
+    );
+    on<AuthEmailVerificationFeedbackCleared>(
+      _onEmailVerificationFeedbackCleared,
+    );
 
     _authSub = authRepository.authStateChanges().listen((_) {
       if (_isAuthActionInFlight) {
@@ -111,6 +129,16 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       if (isGuest) {
         appMode.enterGuest();
       } else {
+        final pendingEmail = await getPendingEmailVerificationUseCase();
+        if (pendingEmail != null) {
+          await prefs.setBool('is_guest', false);
+          appMode.enterGuest();
+          emit(AuthEmailVerificationRequired(email: pendingEmail));
+          debugPrint(
+            "[AUTH-BLOC]onCheckRequested: email verification required for $pendingEmail",
+          );
+          return;
+        }
         appMode.enterRemote();
       }
       await prefs.setBool('is_guest', isGuest);
@@ -205,7 +233,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       final previousGuestUid = previousUser?.isAnonymous == true
           ? previousUser!.id
           : null;
-      final user = await signInWithMicrosoftUseCase();
+      final user = await signInWithMicrosoftUseCase(emailHint: event.emailHint);
       await _tryLinkPendingCredential();
       final migrationOutcome = await _processMigrationDecision(
         migrationRequested: event.shouldMigrateGuestData,
@@ -319,6 +347,19 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     _pendingMigrationAfterPasswordLink = false;
     authRepository.clearPendingAuthLink();
+    final user = getCurrentUserUseCase();
+    if (user != null) {
+      final isGuest = user.isAnonymous;
+      if (isGuest) {
+        appMode.enterGuest();
+      } else {
+        appMode.enterRemote();
+      }
+      emit(AuthAuthenticated(user, isGuest: isGuest));
+      return;
+    }
+
+    appMode.enterGuest();
     emit(AuthUnauthenticated());
   }
 
@@ -393,6 +434,107 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     });
   }
 
+  Future<void> _onEmailVerificationCheckRequested(
+    AuthEmailVerificationCheckRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    final currentState = state;
+    if (currentState is! AuthEmailVerificationRequired) {
+      return;
+    }
+
+    if (currentState.isChecking || currentState.isResending) {
+      return;
+    }
+
+    emit(currentState.copyWith(isChecking: !event.silent, clearFeedback: true));
+
+    try {
+      final pendingEmail = await refreshPendingEmailVerificationUseCase();
+      final user = getCurrentUserUseCase();
+      if (pendingEmail == null && user != null && !user.isAnonymous) {
+        await _onAuthSuccess(user, emit);
+        return;
+      }
+
+      emit(
+        currentState.copyWith(
+          email: pendingEmail ?? currentState.email,
+          isChecking: false,
+          isResending: false,
+        ),
+      );
+    } on AuthFailureException catch (e) {
+      emit(
+        currentState.copyWith(
+          isChecking: false,
+          feedbackMessageKey: _messageFor(e),
+        ),
+      );
+    } catch (_) {
+      emit(
+        currentState.copyWith(
+          isChecking: false,
+          feedbackMessageKey: 'auth.error.generic',
+        ),
+      );
+    }
+  }
+
+  Future<void> _onEmailVerificationResendRequested(
+    AuthEmailVerificationResendRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    final currentState = state;
+    if (currentState is! AuthEmailVerificationRequired) {
+      return;
+    }
+
+    if (currentState.isChecking || currentState.isResending) {
+      return;
+    }
+
+    emit(currentState.copyWith(isResending: true, clearFeedback: true));
+
+    try {
+      await sendEmailVerificationToCurrentUserUseCase();
+      emit(
+        currentState.copyWith(
+          isResending: false,
+          feedbackMessageKey: 'auth.emailVerificationResent',
+        ),
+      );
+    } on AuthFailureException catch (e) {
+      emit(
+        currentState.copyWith(
+          isResending: false,
+          feedbackMessageKey: _messageFor(e),
+        ),
+      );
+    } catch (_) {
+      emit(
+        currentState.copyWith(
+          isResending: false,
+          feedbackMessageKey: 'auth.error.generic',
+        ),
+      );
+    }
+  }
+
+  Future<void> _onEmailVerificationFeedbackCleared(
+    AuthEmailVerificationFeedbackCleared event,
+    Emitter<AuthState> emit,
+  ) async {
+    final currentState = state;
+    if (currentState is! AuthEmailVerificationRequired) {
+      return;
+    }
+    if (currentState.feedbackMessageKey == null) {
+      return;
+    }
+    emit(currentState.copyWith(clearFeedback: true));
+  }
+
   Future<void> _runAuthAction(
     Emitter<AuthState> emit,
     Future<void> Function() action,
@@ -411,6 +553,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       if (e.code == AuthFailureCode.accountExistsWithDifferentCredential &&
           pending != null) {
         emit(AuthLinkRequired(pendingLink: pending, code: e.code));
+      } else if (e.code == AuthFailureCode.emailNotVerified) {
+        final pendingEmail =
+            e.email ?? await getPendingEmailVerificationUseCase() ?? '';
+        emit(AuthEmailVerificationRequired(email: pendingEmail));
       } else {
         emit(AuthFailure(message: _messageFor(e), code: e.code));
       }
@@ -427,9 +573,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       _isAuthActionInFlight = false;
       if (_pendingAuthStateCheck) {
         final currentUser = getCurrentUserUseCase();
-        final shouldReconcile =
-            currentUser != null &&
-            (state is AuthFailure || state is AuthLinkRequired);
+        final shouldReconcile = currentUser != null && _shouldReconcileState();
         _pendingAuthStateCheck = false;
         if (shouldReconcile && !isClosed) {
           add(AuthCheckRequested());
@@ -468,7 +612,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }
 
   Future<void> _tryLinkPendingCredential() async {
-    if (authRepository.pendingAuthLink == null) return;
+    final pending = authRepository.pendingAuthLink;
+    if (pending == null) return;
+    if (!pending.canLinkImmediately) {
+      authRepository.clearPendingAuthLink();
+      return;
+    }
     await linkPendingCredentialUseCase();
   }
 
@@ -508,14 +657,29 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     );
   }
 
+  bool _shouldReconcileState() {
+    if (state is AuthLinkRequired) return true;
+    if (state is AuthEmailVerificationRequired) return true;
+    if (state is! AuthFailure) return false;
+
+    final failure = state as AuthFailure;
+    return failure.code == AuthFailureCode.pendingCredentialNotFound ||
+        failure.code == AuthFailureCode.requiresRecentLogin ||
+        failure.code == AuthFailureCode.credentialAlreadyInUse;
+  }
+
   String _messageFor(AuthFailureException e) {
     switch (e.code) {
       case AuthFailureCode.cancelled:
         return "auth.error.cancelled";
       case AuthFailureCode.invalidCredentials:
         return "auth.error.invalidCredentials";
+      case AuthFailureCode.emailNotVerified:
+        return "auth.error.emailNotVerified";
       case AuthFailureCode.emailAlreadyInUse:
         return "auth.error.emailAlreadyInUse";
+      case AuthFailureCode.accountAlreadyExists:
+        return "auth.error.accountAlreadyExists";
       case AuthFailureCode.accountExistsWithDifferentCredential:
         return "auth.error.accountExistsDifferentCredential";
       case AuthFailureCode.credentialAlreadyInUse:

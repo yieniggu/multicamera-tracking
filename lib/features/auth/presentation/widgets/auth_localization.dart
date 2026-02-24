@@ -13,8 +13,12 @@ String authErrorMessage(BuildContext context, String key) {
       return l10n.authErrorCancelled;
     case "auth.error.invalidCredentials":
       return l10n.authErrorInvalidCredentials;
+    case "auth.error.emailNotVerified":
+      return l10n.authErrorEmailNotVerified;
     case "auth.error.emailAlreadyInUse":
       return l10n.authErrorEmailAlreadyInUse;
+    case "auth.error.accountAlreadyExists":
+      return l10n.authErrorAccountAlreadyExists;
     case "auth.error.accountExistsDifferentCredential":
       return l10n.authErrorAccountExistsDifferentCredential;
     case "auth.error.credentialAlreadyInUse":

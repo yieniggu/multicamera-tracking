@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
+import 'package:multicamera_tracking/features/auth/domain/entities/auth_provider_type.dart';
 import 'package:multicamera_tracking/features/auth/domain/entities/auth_user.dart';
 import 'package:multicamera_tracking/features/auth/domain/entities/pending_auth_link.dart';
 import 'package:multicamera_tracking/features/auth/domain/repositories/auth_repository.dart';
@@ -35,6 +36,9 @@ class _NoopAuthRepository implements AuthRepository {
       null;
 
   @override
+  Future<void> sendPasswordResetEmail(String email) async {}
+
+  @override
   Future<AuthUser?> signInAnonymously() async => null;
 
   @override
@@ -45,10 +49,50 @@ class _NoopAuthRepository implements AuthRepository {
   Future<AuthUser?> signInWithGoogle() async => null;
 
   @override
-  Future<AuthUser?> signInWithMicrosoft() async => null;
+  Future<AuthUser?> signInWithMicrosoft({String? emailHint}) async => null;
 
   @override
   Future<void> signOut() async {}
+
+  @override
+  Future<List<AuthProviderType>> getLinkedSignInMethods() async => const [];
+
+  @override
+  Future<String?> getContactEmail() async => null;
+
+  @override
+  Future<void> setPassword(String newPassword) async {}
+
+  @override
+  Future<void> changePassword(String newPassword) async {}
+
+  @override
+  Future<void> changeEmail(String newEmail) async {}
+
+  @override
+  Future<void> reauthenticateWithPassword({
+    required String email,
+    required String password,
+  }) async {}
+
+  @override
+  Future<void> reauthenticateWithGoogle() async {}
+
+  @override
+  Future<void> reauthenticateWithMicrosoft() async {}
+
+  @override
+  Future<String?> getPendingEmailVerificationEmail() async {
+    return null;
+  }
+
+  @override
+  Future<String?> refreshPendingEmailVerificationEmail() async {
+    return null;
+  }
+
+  @override
+  Future<void> sendEmailVerificationToCurrentUser() async {}
 }
 
 void main() {

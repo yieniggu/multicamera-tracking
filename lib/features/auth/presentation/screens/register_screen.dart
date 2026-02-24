@@ -65,9 +65,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _showLinkRequiredDialog(AuthLinkRequired state) async {
     final l10n = AppLocalizations.of(context)!;
-    final providers = state.pendingLink.existingProviders.isEmpty
-        ? [AuthProviderType.password]
-        : state.pendingLink.existingProviders;
+    final providers = state.pendingLink.existingProviders;
     await showDialog<void>(
       context: context,
       builder: (dialogContext) {
@@ -142,6 +140,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       listener: (blocContext, state) async {
         if (state is AuthAuthenticated) {
           // Close Register and Login, reveal the existing AuthGate underneath.
+          if (!mounted) return;
+          Navigator.of(this.context).popUntil((route) => route.isFirst);
+        } else if (state is AuthEmailVerificationRequired) {
           if (!mounted) return;
           Navigator.of(this.context).popUntil((route) => route.isFirst);
         } else if (state is AuthLinkRequired) {

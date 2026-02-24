@@ -33,6 +33,17 @@ class AppLocalizations {
   String get authAlreadyHaveAccount => _isEs
       ? "¿Ya tienes una cuenta? Inicia sesión"
       : "Already have an account? Log in";
+  String get authForgotPasswordAction =>
+      _isEs ? "¿Olvidaste tu contraseña?" : "Forgot password?";
+  String get authForgotPasswordTitle =>
+      _isEs ? "Restablecer contraseña" : "Reset password";
+  String get authForgotPasswordDescription => _isEs
+      ? "Ingresa tu correo y te enviaremos instrucciones de restablecimiento si existe una cuenta."
+      : "Enter your email and we'll send reset instructions if an account exists.";
+  String get authForgotPasswordSubmit =>
+      _isEs ? "Enviar enlace" : "Send reset link";
+  String get authForgotPasswordBackToLogin =>
+      _isEs ? "Volver a iniciar sesión" : "Back to login";
   String get authEnterAsGuest =>
       _isEs ? "Entrar como invitado" : "Enter as Guest";
   String get authDebugResetLocalDataAction =>
@@ -145,6 +156,20 @@ class AppLocalizations {
     return "An account already exists for $email. Sign in using one of the existing methods first, then we will link your $provider sign-in.";
   }
 
+  String authEmailVerificationDescription(String email) {
+    if (_isEs) {
+      return "Enviamos un correo de confirmación a $email. Confírmalo y vuelve aquí para continuar.";
+    }
+    return "We've sent a confirmation email to $email. Confirm it, then come back here to continue.";
+  }
+
+  String authForgotPasswordConfirmation(String email) {
+    if (_isEs) {
+      return "Si encontramos el correo $email en nuestro sistema, te enviaremos un enlace para restablecer tu contraseña con las instrucciones.";
+    }
+    return "If we find the email $email in our system, we'll send you a password reset link with instructions.";
+  }
+
   String authContinueWithProvider(String provider) {
     return _isEs ? "Continuar con $provider" : "Continue with $provider";
   }
@@ -158,6 +183,78 @@ class AppLocalizations {
       : "Password must be at least 6 characters";
   String get validationPasswordsDoNotMatch =>
       _isEs ? "Las contraseñas no coinciden" : "Passwords do not match";
+  String get authEmailVerificationTitle =>
+      _isEs ? "Verifica tu correo" : "Verify your email";
+  String get authEmailVerificationContinueButton =>
+      _isEs ? "Ya confirmé, continuar" : "I've confirmed, continue";
+  String get authEmailVerificationResendButton =>
+      _isEs ? "Reenviar correo" : "Resend email";
+  String get authEmailVerificationUseAnotherAccount =>
+      _isEs ? "Usar otra cuenta" : "Use another account";
+  String get authEmailVerificationResent => _isEs
+      ? "Correo de verificación reenviado."
+      : "Verification email sent again.";
+  String get preferencesTitle => _isEs ? "Preferencias" : "Preferences";
+  String get preferencesLanguageTitle => _isEs ? "Idioma" : "Language";
+  String get preferencesLanguageSpanish => _isEs ? "Español" : "Spanish";
+  String get preferencesLanguageEnglish => _isEs ? "Inglés" : "English";
+  String get preferencesLanguageSaveError => _isEs
+      ? "No se pudo guardar el idioma. Intenta nuevamente."
+      : "Unable to save language. Please try again.";
+  String get accountSettingsTitle =>
+      _isEs ? "Configuración de la cuenta" : "Account Settings";
+  String get accountSecurityTitle =>
+      _isEs ? "Seguridad de la cuenta" : "Account Security";
+  String get accountProfileTitle => _isEs ? "Perfil" : "Account Profile";
+  String get accountProfileEmailLabel => _isEs ? "Correo electrónico" : "Email";
+  String get accountProfileLanguageLabel =>
+      _isEs ? "Idioma de la app" : "App language";
+  String get accountProfileFirstNameLabel => _isEs ? "Nombre" : "First name";
+  String get accountProfileLastNameLabel => _isEs ? "Apellido" : "Last name";
+  String get accountProfilePhoneLabel => _isEs ? "Teléfono" : "Phone number";
+  String get accountProfileSave => _isEs ? "Guardar cambios" : "Save changes";
+  String get accountProfileSaveSuccess => _isEs
+      ? "Perfil actualizado correctamente."
+      : "Profile updated successfully.";
+  String get accountProfileSaveError =>
+      _isEs ? "No se pudo actualizar el perfil." : "Unable to update profile.";
+  String get accountProfileLoadError =>
+      _isEs ? "No se pudo cargar el perfil." : "Unable to load profile.";
+  String get accountProfileFirstNameRequired =>
+      _isEs ? "El nombre es obligatorio." : "First name is required.";
+  String get accountProfilePhoneInvalid =>
+      _isEs ? "Ingresa un teléfono válido." : "Enter a valid phone number.";
+  String get accountSettingsContactEmail =>
+      _isEs ? "Correo de contacto" : "Contact email";
+  String get accountSettingsNoEmail =>
+      _isEs ? "Sin correo disponible" : "No email available";
+  String get accountSettingsLinkedMethods =>
+      _isEs ? "Métodos vinculados" : "Linked sign-in methods";
+  String get accountSettingsMethodPassword => _isEs ? "Contraseña" : "Password";
+  String get accountSettingsMethodGoogle => "Google";
+  String get accountSettingsMethodMicrosoft => "Microsoft";
+  String get accountSettingsSetPassword =>
+      _isEs ? "Configurar contraseña" : "Set password";
+  String get accountSettingsChangePassword =>
+      _isEs ? "Cambiar contraseña" : "Change password";
+  String get accountSettingsChangeEmail =>
+      _isEs ? "Cambiar correo" : "Change email";
+  String get accountSettingsSave => _isEs ? "Guardar" : "Save";
+  String get accountSettingsLogout => _isEs ? "Cerrar sesión" : "Logout";
+  String get accountSettingsReauthTitle =>
+      _isEs ? "Reautenticación requerida" : "Reauthentication required";
+  String get accountSettingsReauthDescription => _isEs
+      ? "Para completar esta acción, vuelve a autenticarte con un método vinculado."
+      : "To complete this action, reauthenticate with one of your linked methods.";
+  String get accountSettingsPasswordSetSuccess => _isEs
+      ? "Contraseña configurada correctamente."
+      : "Password set successfully.";
+  String get accountSettingsPasswordChangedSuccess => _isEs
+      ? "Contraseña actualizada correctamente."
+      : "Password updated successfully.";
+  String get accountSettingsEmailChangedSuccess => _isEs
+      ? "Correo actualizado correctamente."
+      : "Email updated successfully.";
 
   String get authErrorSignInFailed => _isEs
       ? "No se pudo iniciar sesión. Intenta de nuevo."
@@ -168,9 +265,14 @@ class AppLocalizations {
       _isEs ? "Se canceló el inicio de sesión." : "Sign-in was cancelled.";
   String get authErrorInvalidCredentials =>
       _isEs ? "Credenciales inválidas." : "Invalid credentials.";
+  String get authErrorEmailNotVerified => _isEs
+      ? "Verifica tu correo electrónico antes de iniciar sesión."
+      : "Verify your email before signing in.";
   String get authErrorEmailAlreadyInUse => _isEs
       ? "Este correo ya está registrado. Inicia sesión o usa otro correo."
       : "This email is already registered. Sign in or use a different email.";
+  String get authErrorAccountAlreadyExists =>
+      _isEs ? "La cuenta ya existe." : "Account already exists.";
   String get authErrorAccountExistsDifferentCredential => _isEs
       ? "Este correo ya usa otro método de inicio de sesión."
       : "This email already uses a different sign-in method.";

@@ -7,8 +7,11 @@ import 'package:multicamera_tracking/features/auth/domain/entities/auth_user.dar
 import 'package:multicamera_tracking/features/auth/domain/entities/pending_auth_link.dart';
 import 'package:multicamera_tracking/features/auth/domain/repositories/auth_repository.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/get_current_user.dart';
+import 'package:multicamera_tracking/features/auth/domain/use_cases/get_pending_email_verification.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/link_pending_credential.dart';
+import 'package:multicamera_tracking/features/auth/domain/use_cases/refresh_pending_email_verification.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/register_with_email.dart';
+import 'package:multicamera_tracking/features/auth/domain/use_cases/send_email_verification_to_current_user.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/sign_out.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/signin_anonymously.dart';
 import 'package:multicamera_tracking/features/auth/domain/use_cases/signin_with_email.dart';
@@ -85,6 +88,9 @@ class _FakeAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<void> sendPasswordResetEmail(String email) async {}
+
+  @override
   Future<AuthUser?> signInAnonymously() async {
     anonymousSignInCalls += 1;
     _currentUser = anonymousResult;
@@ -109,7 +115,7 @@ class _FakeAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<AuthUser?> signInWithMicrosoft() async {
+  Future<AuthUser?> signInWithMicrosoft({String? emailHint}) async {
     if (microsoftException != null) throw microsoftException!;
     _currentUser = microsoftResult;
     return microsoftResult;
@@ -119,6 +125,48 @@ class _FakeAuthRepository implements AuthRepository {
   Future<void> signOut() async {
     _currentUser = null;
   }
+
+  @override
+  Future<List<AuthProviderType>> getLinkedSignInMethods() async => const [
+    AuthProviderType.password,
+  ];
+
+  @override
+  Future<String?> getContactEmail() async => _currentUser?.email;
+
+  @override
+  Future<void> setPassword(String newPassword) async {}
+
+  @override
+  Future<void> changePassword(String newPassword) async {}
+
+  @override
+  Future<void> changeEmail(String newEmail) async {}
+
+  @override
+  Future<void> reauthenticateWithPassword({
+    required String email,
+    required String password,
+  }) async {}
+
+  @override
+  Future<void> reauthenticateWithGoogle() async {}
+
+  @override
+  Future<void> reauthenticateWithMicrosoft() async {}
+
+  @override
+  Future<String?> getPendingEmailVerificationEmail() async {
+    return null;
+  }
+
+  @override
+  Future<String?> refreshPendingEmailVerificationEmail() async {
+    return null;
+  }
+
+  @override
+  Future<void> sendEmailVerificationToCurrentUser() async {}
 
   Future<void> dispose() async {
     await _authController.close();
@@ -249,6 +297,13 @@ void main() {
       linkPendingCredentialUseCase: LinkPendingCredentialUseCase(repository),
       signOutUseCase: SignOutUseCase(repository),
       getCurrentUserUseCase: GetCurrentUserUseCase(repository),
+      getPendingEmailVerificationUseCase: GetPendingEmailVerificationUseCase(
+        repository,
+      ),
+      refreshPendingEmailVerificationUseCase:
+          RefreshPendingEmailVerificationUseCase(repository),
+      sendEmailVerificationToCurrentUserUseCase:
+          SendEmailVerificationToCurrentUserUseCase(repository),
       initUserDataUseCase: InitUserDataUseCase(initService),
       migrateGuestDataUseCase: MigrateGuestDataUseCase(migrationService),
       getGuestMigrationPreviewUseCase: GetGuestMigrationPreviewUseCase(
@@ -410,6 +465,41 @@ void main() {
     },
   );
 
+  test(
+    'emits minimal account-already-exists error when signup is blocked',
+    () async {
+      repository.registerException = const AuthFailureException(
+        code: AuthFailureCode.accountAlreadyExists,
+      );
+
+      final expectation = expectLater(
+        bloc.stream,
+        emitsInOrder([
+          isA<AuthLoading>(),
+          isA<AuthFailure>()
+              .having(
+                (state) => state.code,
+                'code',
+                AuthFailureCode.accountAlreadyExists,
+              )
+              .having(
+                (state) => state.message,
+                'message',
+                'auth.error.accountAlreadyExists',
+              ),
+        ]),
+      );
+
+      bloc.add(
+        const AuthRegisteredWithEmail(
+          email: 'already@exists.com',
+          password: 'secret123',
+        ),
+      );
+      await expectation;
+    },
+  );
+
   test('attempts pending-credential linking after email sign-in', () async {
     repository.pendingLink = const PendingAuthLink(
       email: 'owner@example.com',
@@ -439,6 +529,93 @@ void main() {
     await expectation;
     expect(repository.linkPendingCalled, isTrue);
   });
+
+  test(
+    'clears non-linkable pending auth link after successful email sign-in',
+    () async {
+      repository.pendingLink = const PendingAuthLink(
+        email: 'owner@example.com',
+        existingProviders: [AuthProviderType.password],
+        pendingProvider: AuthProviderType.microsoft,
+        canLinkImmediately: false,
+      );
+      repository.emailResult = const AuthUser(
+        id: 'owner-user',
+        email: 'owner@example.com',
+        isAnonymous: false,
+      );
+
+      final expectation = expectLater(
+        bloc.stream,
+        emitsInOrder([
+          isA<AuthLoading>(),
+          isA<AuthAuthenticated>().having(
+            (state) => state.user.id,
+            'id',
+            'owner-user',
+          ),
+        ]),
+      );
+
+      bloc.add(const AuthSignedInWithEmail('owner@example.com', 'secret123'));
+      await expectation;
+      expect(repository.linkPendingCalled, isFalse);
+      expect(repository.pendingAuthLink, isNull);
+    },
+  );
+
+  test(
+    'does not auto-reconcile to guest session after invalid email credentials failure',
+    () async {
+      repository.currentUserForTest = const AuthUser(
+        id: 'local_guest',
+        isAnonymous: true,
+      );
+      repository.emailException = const AuthFailureException(
+        code: AuthFailureCode.invalidCredentials,
+      );
+
+      final expectation = expectLater(
+        bloc.stream,
+        emitsInOrder([
+          isA<AuthLoading>(),
+          isA<AuthFailure>().having(
+            (state) => state.code,
+            'code',
+            AuthFailureCode.invalidCredentials,
+          ),
+        ]),
+      );
+
+      bloc.add(const AuthSignedInWithEmail('owner@example.com', 'wrong-pass'));
+      await expectation;
+    },
+  );
+
+  test(
+    'emits email verification required state on unverified email sign-in',
+    () async {
+      repository.emailException = const AuthFailureException(
+        code: AuthFailureCode.emailNotVerified,
+        email: 'owner@example.com',
+      );
+
+      final expectation = expectLater(
+        bloc.stream,
+        emitsInOrder([
+          isA<AuthLoading>(),
+          isA<AuthEmailVerificationRequired>().having(
+            (state) => state.email,
+            'email',
+            'owner@example.com',
+          ),
+        ]),
+      );
+
+      bloc.add(const AuthSignedInWithEmail('owner@example.com', 'Passw0rd!'));
+      await expectation;
+    },
+  );
 
   test(
     'migrates guest data after password-required link resolution then email sign-in',
@@ -489,6 +666,35 @@ void main() {
       expect(migrationService.calls, 1);
       expect(migrationService.lastSourceUserId, 'local_guest');
       expect(migrationService.lastTargetUserId, 'owner-user');
+    },
+  );
+
+  test(
+    'restores guest session when pending link is cleared from link-required flow',
+    () async {
+      repository.currentUserForTest = const AuthUser(
+        id: 'local_guest',
+        isAnonymous: true,
+      );
+      repository.pendingLink = const PendingAuthLink(
+        email: 'owner@example.com',
+        existingProviders: [AuthProviderType.password],
+        pendingProvider: AuthProviderType.google,
+        canLinkImmediately: true,
+      );
+
+      final expectation = expectLater(
+        bloc.stream,
+        emits(
+          isA<AuthAuthenticated>()
+              .having((state) => state.user.id, 'id', 'local_guest')
+              .having((state) => state.isGuest, 'isGuest', isTrue),
+        ),
+      );
+
+      bloc.add(AuthPendingLinkCleared());
+      await expectation;
+      expect(repository.pendingAuthLink, isNull);
     },
   );
 

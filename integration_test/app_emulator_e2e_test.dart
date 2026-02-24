@@ -27,6 +27,7 @@ import 'package:multicamera_tracking/shared/domain/entities/guest_migration.dart
 import 'package:multicamera_tracking/shared/domain/services/app_mode.dart';
 import 'package:multicamera_tracking/shared/domain/services/guest_data_migration_service.dart';
 import 'package:multicamera_tracking/shared/domain/services/guest_data_service.dart';
+import 'package:multicamera_tracking/shared/presentation/bloc/app_locale_cubit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const bool _runFirebaseEmulatorE2E = bool.fromEnvironment(
@@ -311,7 +312,10 @@ void main() {
 
 Future<AuthBloc> _pumpApp(WidgetTester tester) async {
   final authBloc = getIt<AuthBloc>()..add(AuthCheckRequested());
-  await tester.pumpWidget(MyApp(authBloc: authBloc));
+  final appLocaleCubit = getIt<AppLocaleCubit>()..hydrate();
+  await tester.pumpWidget(
+    MyApp(authBloc: authBloc, appLocaleCubit: appLocaleCubit),
+  );
   await tester.pumpAndSettle();
   return authBloc;
 }

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:multicamera_tracking/features/auth/domain/entities/auth_provider_type.dart';
 import 'package:multicamera_tracking/features/auth/domain/entities/auth_user.dart';
 import 'package:multicamera_tracking/features/auth/domain/entities/pending_auth_link.dart';
 import 'package:multicamera_tracking/features/auth/domain/repositories/auth_repository.dart';
@@ -54,6 +55,9 @@ class _FakeAuthRepository implements AuthRepository {
       currentUser;
 
   @override
+  Future<void> sendPasswordResetEmail(String email) async {}
+
+  @override
   Future<AuthUser?> signInAnonymously() async => currentUser;
 
   @override
@@ -64,7 +68,8 @@ class _FakeAuthRepository implements AuthRepository {
   Future<AuthUser?> signInWithGoogle() async => currentUser;
 
   @override
-  Future<AuthUser?> signInWithMicrosoft() async => currentUser;
+  Future<AuthUser?> signInWithMicrosoft({String? emailHint}) async =>
+      currentUser;
 
   @override
   Future<bool> linkPendingCredentialToCurrentUser() async => false;
@@ -77,6 +82,46 @@ class _FakeAuthRepository implements AuthRepository {
 
   @override
   Future<void> signOut() async {}
+
+  @override
+  Future<List<AuthProviderType>> getLinkedSignInMethods() async => const [];
+
+  @override
+  Future<String?> getContactEmail() async => null;
+
+  @override
+  Future<void> setPassword(String newPassword) async {}
+
+  @override
+  Future<void> changePassword(String newPassword) async {}
+
+  @override
+  Future<void> changeEmail(String newEmail) async {}
+
+  @override
+  Future<void> reauthenticateWithPassword({
+    required String email,
+    required String password,
+  }) async {}
+
+  @override
+  Future<void> reauthenticateWithGoogle() async {}
+
+  @override
+  Future<void> reauthenticateWithMicrosoft() async {}
+
+  @override
+  Future<String?> getPendingEmailVerificationEmail() async {
+    return null;
+  }
+
+  @override
+  Future<String?> refreshPendingEmailVerificationEmail() async {
+    return null;
+  }
+
+  @override
+  Future<void> sendEmailVerificationToCurrentUser() async {}
 }
 
 class _FakeCameraRepository implements CameraRepository {
